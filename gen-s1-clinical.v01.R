@@ -1,6 +1,7 @@
 # -----------------------------------------------------------------------------#
 # Generate a RData file that contains clinical data
 # Some processing was included as below.
+#   - Remove two duplicated samples and two matching controls
 #   - Codebook, incl. fixing the code errors
 #   - Too many NAs or identical or too few element
 #   - Special variables : Tinnitus, Sex, Smoking
@@ -88,7 +89,15 @@ print(dim(qns0))
 about_table <- list()
 
 qns <- qns0 %>% 
-  select(-c(IL8:`CSF-1`, `Plate ID`, `QC Warning`)) %>%   # remove NPX values.
+  # Remove two duplicated samples and two matching controls 
+  # (email : 20191125 from Christopher)
+  filter(
+    ! ID %in% c('US680082', 'VB209204',
+                'EF746947', 'AJ899088')
+  ) %>% 
+
+  # remove NPX values.
+  select(-c(IL8:`CSF-1`, `Plate ID`, `QC Warning`)) %>%
   
   mutate( # ID as character, Date as date, Time as time
     across(c('Barcode', 'ParticipantID'), as.character),   # IDs
@@ -119,8 +128,7 @@ cat("ID variables to be removed \n")
 print(about_table$redun_ids)
 
 qns <- qns %>% 
-  select(-one_of(about_table$redun_ids))
-
+  select(-one_of(about_table$redun_ids))  # remove the redundant IDs
 
 ## Irregular columns ----------
 
@@ -137,7 +145,6 @@ qns <- qns %>%
   select(-one_of(about_table$mostly_na, 
                  about_table$one_value_only$Column,
                  about_table$one_value_or_na$Column)) 
-
 
 ## Update with the codebook ----------
 
@@ -249,12 +256,85 @@ codes <- codes %>%
       replace(. == "Intro_3", 'Tinnitus')
   )
 
-## Derive additional variable(s)
+## Derive additional variable(s) ----------
 
 # BMI
 qns <- qns %>% 
   mutate(
     BMI = A4 / (A3 / 100)^2
+  )
+
+## Clean-up more ----------
+qns <- qns %>% 
+  mutate(
+    # Merge `MEB plan 4` with `Stockholm`
+    `Sample Lab` = if_else(`Sample Lab` == 'MEB Plan 4', 'Stockholm', `Sample Lab`)
+  )
+
+## Remove the variables about existence of samples
+has_vars <- names(qns) %>% {.[startsWith(., "Has")]}
+print(has_vars)
+qns <- qns %>% 
+  select(-one_of(has_vars))
+
+## Date/Time variables
+datetime_vars <- names(qns) %>% 
+  {.[grepl("time|date", tolower(.))]} %>% 
+  {.[. != "Date difference"]}
+qns <- qns %>% 
+  mutate(
+    across(
+      all_of(datetime_vars),
+      function(.x) {
+        if(lubridate::is.POSIXt(.x) | lubridate::is.Date(.x) | hms::is_hms(.x)) return(.x)
+        if(nchar(.x[1]) > 10) as.POSIXct(.x) else as.Date(.x)
+      }
+    )
+  )
+
+## Fix nations
+variations <- list(
+  sverige = c(
+    'Sverige', 
+    'sverige', 
+    'Sverige, Västernorrland', 
+    'Stockholm', 
+    'Sverv', 
+    'SE', 
+    'SVERIGE', 
+    'Svergie', 
+    'Sveruge', 
+    'Sv', 
+    'Sverioge', 
+    'Sverie', 
+    'Sverige ä', 
+    'Sveroge', 
+    'Sverige, Stockholm', 
+    'Svweige', 
+    'Sverige och ca 3 mån per år i USA', 
+    'Sveige', 
+    'Scerige', 
+    'Sverige/USA', 
+    'Sverige 6 månader och Algarve, Portugal 6 månader', 
+    "Kosovo sedan sex manader   (Normalt i Sverige)",
+    "Göteborg",
+    "Nyköping",
+    "Kiruna"
+  )
+)
+qns <- qns %>% 
+  mutate_at(
+    c("Intro_2", "Intro_2B"),
+    function(.x) {
+      .x[.x %in% variations$sverige] <- variations$sverige[1]
+      .x[tolower(.x) == "usa"] <- "USA"
+      .x[tolower(.x) == "iran"] <- "Iran"
+      .x[.x == "Filand"] <- "Finland"
+      .x[.x == "Storbrittanien"] <- "Storbritannien"
+      .x[.x == "Prag"] <- "Tjeckoslovakien"
+      .x[.x == "bosnien hercegovina"] <- "Bosnien"
+      .x
+    }
   )
 
 # Save --------------------------------------------------------------------
