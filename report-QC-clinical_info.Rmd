@@ -1,0 +1,143 @@
+---
+title: "QC - clinical info table"
+author: "Mun-Gwan Hong"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    theme: cerulean
+    toc: true
+    toc_float: 
+      collapse : false
+    toc_depth: 3
+    # code_folding: hide
+    number_sections: true
+    css: styles.css
+# bibliography: citations_in_report.bib
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding= encoding, output_dir= "../reports") })
+---
+
+```{r setup, echo=FALSE, include=FALSE}
+## Pre-loaded packages
+# Please note that many functions were called directly from the package using 
+# double colon '::' to make the source clearer. 
+library(tidyverse)
+library(kableExtra)
+
+rm(list = ls())
+
+## Chunk hooks
+knitr::knit_hooks$set(
+  optipng = knitr::hook_optipng   # Optimize PNG plots
+)
+## Set default chunk options
+knitr::opts_chunk$set(
+	echo = FALSE,    # comment out for code_folding
+	# dev = c('pdf'), fig.path = '../results/figures/', # export figures to pdf files
+  results = "asis",   # for HTML
+  message = FALSE,    # no message from the code
+  warning = FALSE,    # no warning from the code
+	cache.path = "../cache/",   # cache the results from heavy analyses
+  fig.width  = 8,
+  fig.height = 6,
+	eval.after = "fig.cap",    # to add fig. caption within the chunk
+  optipng = '-o1', # '-o7 -zc9 -zm8 -zs0', # Optimize 'png' plots
+	purl = FALSE      # because most of the code are not to be extracted
+)
+options(knitr.kable.NA = '')  # NA is shown as ''
+```
+
+```{r Load data, purl=TRUE}
+## File names
+fn <- list(
+  lib = "utils.R",
+	i = list(                               # input
+    c01 = "../data/s1-clinical.v01.RData"	
+	)
+)
+
+# Brief check if all files exist
+stopifnot(all(file.exists(unlist(fn$i), fn$lib)))
+
+source(fn$lib)  # geom_split_violin
+# Loading clinical information ver.01
+load(fn$i$c01)
+```
+
+* *All information was from the file, `All STOP questionnaire data 180118_v14_BloodAnalysis_v2.xlsx`*.
+* *The steps that *<span style="background-color:greenyellow">modify the data (e.g. remove samples)</span> *were highlighted in the following sections.*
+
+## Sample-wise
+
+### Duplicated samples
+
+Initially, there were the data of 550 patients and 550 controls in the table, `All STOP questionnaire data 180118_v14_BloodAnalysis_v2`. 
+Two samples in the table were duplicated, which were both cases. 
+To keep the matching condition, <span style="background-color:greenyellow">two matching controls selected by Christopher, as well as those two patients were removed</span>. 
+The numbers of samples after the exclusion were `r sum(qns$Tinnitus == "Yes, always")` Tinnitus patients and `r sum(qns$Tinnitus == "No")` controls. 
+
+There was **no duplicated sample** according to `PariticantID` after the exclusion. 
+
+```{r}
+stopifnot(anyDuplicated(qns$ParticipantID) == 0)
+```
+
+## Variable-wise
+
+### `Age` vs. `Sampling Age`
+
+There are two columns for age, `Sampling Age` and `Age`, which are correlated ($R^2$ = `r signif(cor(qns[["Sampling Age"]], qns$Age)^2, 3)`). 
+`Age` is when tinnitus was defined, while `Sampling Age` is when blood was drawn. 
+
+### `Sample Lab`
+
+Samples were originally collected at 4 sample labs. 
+Because `MEB Plan 4` is located in Stockholm and just one female patient sample was from the lab, <span style="background-color:greenyellow">the sample was merged with the samples from `Stockholm` sample lab</span>. 
+
+### Variables with too many missing values. 
+
+<span style="background-color:greenyellow">`r english::Words(length(about_table$mostly_na))` variables having too many missing values (>80%) were removed.</span>
+They are listed below.
+
+```{r}
+cat(knitr::combine_words(about_table$mostly_na, before = "`"))
+```
+
+### Variables with the same value
+
+`r english::Words(nrow(about_table$one_value_only))` variables had only one identical value for all samples. 
+<span style="background-color:greenyellow">Those variables without any variation were removed</span>, which are listed below.
+
+```{r}
+about_table$one_value_only %>% 
+    kable() %>% 
+    kable_styling(full_width = F)
+```
+
+### Variables with one identical value or NA
+
+`r english::Words(nrow(about_table$one_value_or_na))` variables had only one identical value or missing for all samples.
+<span style="background-color:greenyellow">Those variables were removed.</span>
+
+```{r}
+about_table$one_value_or_na %>% 
+    kable() %>% 
+    kable_styling(full_width = F)
+```
+
+###  Variables with wrong code book
+
+* `r english::Words(length(about_table$wrong_code$noyes))` variables for Yes / No question was supposed to be coded as `2` and `1`, according to the codebook. 
+But the values found in those varaibles were `0` and `1`, <span style="background-color:greenyellow">which were translated into `No` and `Yes`, respectively</span>.
+
+```{r}
+cat(knitr::combine_words(about_table$wrong_code$noyes, before = "`"))
+```
+
+* `r english::Words(length(about_table$wrong_code$noyes_little_to_lot))` variables for 'No', 'Yes, a little', 'Yes, quite a lot', 'Yes, a lot' question was supposed to be coded with natural numbers from `1` to `4`, according to the codebook. 
+But the values found in those variables were unexpectedly `0` to `3`, <span style="background-color:greenyellow">which were translated into 'No', 'Yes, a little', 'Yes, quite a lot', and 'Yes, a lot', respectively</span>.
+
+```{r}
+cat(knitr::combine_words(about_table$wrong_code$noyes_little_to_lot, before = "`"))
+```
+

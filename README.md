@@ -158,6 +158,7 @@ them in the right order after adding the information about the project and NBIS
 support. 
 
 * `report-sample_info.Rmd` : About samples and clinical info
+* `report-QC-clinical_info.Rmd` : Clinical info table QC
 * `report-QC.Rmd` : About QC and preprocessing of 
 
 #### Extra analyses
