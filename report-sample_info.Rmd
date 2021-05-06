@@ -1,0 +1,250 @@
+---
+title: "About samples and clinical data"
+author: "Mun-Gwan Hong"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    theme: cerulean
+    toc: true
+    toc_float: 
+      collapse : false
+    toc_depth: 3
+    # code_folding: hide
+    number_sections: true
+    css: styles.css
+# bibliography: citations_in_report.bib
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding= encoding, output_dir= "../reports") })
+---
+
+```{r setup, echo=FALSE, include=FALSE}
+## Pre-loaded packages
+# Please note that many functions were called directly from the package using 
+# double colon '::' to make the source clearer. 
+library(tidyverse)
+library(kableExtra)
+library(janitor)
+
+rm(list = ls())
+
+## Chunk hooks
+knitr::knit_hooks$set(
+  optipng = knitr::hook_optipng   # Optimize PNG plots
+)
+## Set default chunk options
+knitr::opts_chunk$set(
+	echo = FALSE,    # comment out for code_folding
+	# dev = c('pdf'), fig.path = '../results/figures/', # export figures to pdf files
+  results = "asis",   # for HTML
+  message = FALSE,    # no message from the code
+  warning = FALSE,    # no warning from the code
+	cache.path = "../cache/",   # cache the results from heavy analyses
+  fig.width  = 7,
+  fig.height = 5.5,
+	eval.after = "fig.cap",    # to add fig. caption within the chunk
+  optipng = '-o1', # '-o7 -zc9 -zm8 -zs0', # Optimize 'png' plots
+	purl = FALSE      # because most of the code are not to be extracted
+)
+options(knitr.kable.NA = '')  # NA is shown as ''
+```
+
+```{r Load data, purl=TRUE}
+## File names
+fn <- list(
+  lib = "utils.R",
+	i = list(                               # input
+    c01 = "../data/s1-clinical.v01.RData"	
+	)
+)
+
+# Brief check if all files exist
+stopifnot(all(file.exists(unlist(fn$i), fn$lib)))
+
+source(fn$lib)  # geom_split_violin, add_n
+# Loading clinical information ver.01
+load(fn$i$c01)
+```
+
+* *All information about samples was initially obtained from the file, `All STOP questionnaire data 180118_v14_BloodAnalysis_v2.xlsx`*.
+* The results presented in this section are based on the data after QC of the given data. The QC is described thoroughly in the section "QC of clinical data table". 
+
+## Matching between cases and controls
+
+### Tinnitus status and Sex
+
+There were two groups in terms of disease status, `r knitr::combine_words(unique(qns$Tinnitus), before = "'")`. 
+These is no 'Yes, occasionally' nor 'Don't know' case. Equal numbers of cases and controls were in each sex. 
+
+```{r}
+qns %>% 
+  tabyl(Tinnitus, Sex) %>% 
+  adorn_totals('col') %>% 
+  kable() %>% 
+  kable_styling(full_width = F)
+```
+
+### Age distribution by sex and tinnitus status
+
+Cases and controls were matched for age and sex. 
+
+```{r}
+qns %>% 
+  ggplot() +
+  aes(x = Sex, y= Age, fill= Tinnitus) +
+  geom_split_violin()
+```
+
+## Variables related to sample collection
+
+### Sample labs
+
+```{r}
+#  ANOVA P-value
+tmp <- anova(lm(Age ~ `Sample Lab`, data = qns))[['Pr(>F)']][1] %>% signif(3)
+```
+
+Samples were from `r n_distinct(qns[["Sample Lab"]])` sample labs. 
+Generally speaking, the number of samples are balanced with respect to disease status and sex. 
+The ages between cases and controls were well matched in each sample lab.
+Note that **average ages significantly varied between the labs** (ANOVA P=$`r tmp`$).
+
+```{r}
+qns %>% 
+  nest(data = -`Sample Lab`) %>% 
+  mutate( 
+    freq = map(data, . %>% tabyl(Tinnitus, Sex)),
+    `P-value` = map_dbl(freq, ~ signif(fisher.test(.x)$p.value, 3)),
+    `Avg. Sampling Age` = map_dbl(data, ~ signif(mean(.x$`Sampling Age`), 3))
+  ) %>% 
+  select(-data) %>% 
+  unnest(cols= c(freq)) %>% 
+  select(`Sample Lab`, Tinnitus, Male, Female, `P-value`, `Avg. Sampling Age`) %>% 
+  rename_with(~ paste0(.x, footnote_marker_symbol(1)), "P-value") %>% 
+  kbl(
+    caption = "Age and sex of the samples from each sample lab",
+    escape= F
+  ) %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F) %>% 
+  collapse_rows(c(1, 5)) %>% 
+  footnote(
+    symbol = "Fisher's exact test for association between sex and Tinnitus"
+  )
+```
+
+```{r}
+qns %>% 
+  ggplot() +
+  aes(x = `Sample Lab`, y= `Sampling Age`, fill= Tinnitus) +
+  geom_split_violin()
+```
+
+### Collection date and time
+
+The date and time of sample collection were seemingly balanced between cases and controls.
+
+```{r collection,fig.height=3}
+qns %>% 
+  ggplot() +
+  aes(x = `Collection Date`, fill= Tinnitus) +
+  geom_histogram(bins= 30) +
+  ggtitle('Sample collection date')
+
+qns %>% 
+  ggplot() +
+  aes(x = `Collection Time`, fill= Tinnitus) +
+  geom_histogram(bins= 30) +
+  ggtitle('Sample collection time')
+```
+
+## Questions possibly associated with Tinnitus
+
+```{r}
+# FUN : show contingency tables
+show_tables <- function(vars_in, data_tbl) {
+  for(ii in vars_in) {
+    cat('*', codes$Label[codes$Variable == ii])
+    # contingency table with Tinnitus status column
+    sub_tbl <- data_tbl %>% 
+      select(all_of(c('Tinnitus', ii))) %>% 
+      drop_na() %>% 
+      plyr::count(c('Tinnitus', ii)) %>% 
+      pivot_wider(names_from = all_of(ii), values_from = freq, values_fill = 0)
+    
+    if(dim(sub_tbl)[1L] > 1 & dim(sub_tbl)[2L] > 2) {
+      sub_tbl %>% 
+        select(-Tinnitus) %>% 
+        as.matrix() %>% 
+        fisher.test(simulate.p.value = dim(sub_tbl)[2L] >= 5) %>% 
+        {signif(.$p.value, 3)} %>% 
+        sfsmisc:::toLatex.numeric() %>%     # * 10^x format
+        cat(" ( Fisher's test P = $", ., "$)\n", sep = "")
+    } else {
+      cat("\n")
+    }
+    
+    sub_tbl %>% 
+      kable() %>% 
+      kable_styling(full_width = F) %>% 
+      print()
+    cat("\n")
+  }
+}
+```
+
+### Hearing
+
+```{r}
+# hearing related variables
+i_hearing <- sapply(
+  c('hearing', 'relative', 'write next to', 'hearing aids'),
+  function(.x) grepl(.x, tolower(codes$Label))
+) %>%
+  apply(1, function(x) x[1] & all(!x[2:4])) %>% 
+  {codes$Variable[.]}
+
+show_tables(i_hearing, qns)
+```
+
+### Smoking
+
+```{r}
+show_tables('Smoking', qns)
+```
+
+### Stress
+
+```{r, fig.width=6, fig.height=5}
+stress <- list(
+  qty = list(
+    Stress = "PSQ Total score",
+    Anxiety = "HADS_A Total score",
+    Depression = "HADS_D Total score",
+    Hyperacusis = "HQ Total score"
+  ),
+  cat = list(
+    "Temporomandibular joint pain" = "A15_4",
+    headache = "A15_1"
+  )
+)
+
+qns_nm <- qns
+names(qns_nm) <- make.names(names(qns_nm))
+
+for(ii in seq_along(stress$qty)) {
+  f <- formula(paste(make.names(stress$qty[[ii]]), "~ Tinnitus"))
+  pval <- summary(aov(f, qns_nm))[[1]][1, 5] %>% signif(3)
+
+  p <- ggplot(qns_nm) +
+    aes_string(y = make.names(stress$qty[[ii]]), x= "Tinnitus") +
+    geom_boxplot(na.rm= T) +
+    ylab(stress$qty[[ii]]) +
+    ggtitle(paste(names(stress$qty)[ii], "( ANOVA P =", pval, ")")) +
+    add_n()
+  print(p)
+}
+```
+
+```{r}
+show_tables(stress$cat, qns)
+```
+

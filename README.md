@@ -150,13 +150,14 @@ The master script for computationally heavy analyses.
 
 ### Report writing
 
-#### `report.Rmd`
+#### `report-5797-Tinnitus.Rmd`
 
 The master R markdown file to create the final report. Individual chapters were
 written in separate R markdown files listed below. This master file runs all of
 them in the right order after adding the information about the project and NBIS
 support. 
 
+* `report-sample_info.Rmd` : About samples and clinical info
 * `report-QC.Rmd` : About QC and preprocessing of 
 
 #### Extra analyses
@@ -167,6 +168,7 @@ Primary reason was that we decided to focus on different analyses.
 #### Auxiliary files
 
 * `styles.css` : CSS style, used by Rmarkdown (`.Rmd`) files for reports
+* `utils.R` : A collection of useful R functions
 
 
 ### Plots
