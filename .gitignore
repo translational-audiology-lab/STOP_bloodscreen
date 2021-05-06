@@ -1,0 +1,7 @@
+# files and folders generated with the Rstudio project
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+**/.DS_Store
