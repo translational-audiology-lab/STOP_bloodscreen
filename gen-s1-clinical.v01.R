@@ -1,5 +1,11 @@
 # -----------------------------------------------------------------------------#
 # Generate a RData file that contains clinical data
+# Some processing was included as below.
+#   - Codebook, incl. fixing the code errors
+#   - Too many NAs or identical or too few element
+#   - Special variables : Tinnitus, Sex, Smoking
+#   - Fix values < LLOD
+#   - add BMI
 # -----------------------------------------------------------------------------#
 # initiated on 2019-12-03
 # authors : Mun-Gwan Hong
