@@ -109,15 +109,18 @@ qns <- qns0 %>%
 ## Remove redundant ID variables ----------
 
 # find them
-about_table$redun_ids <- names(qns)[grep("ID", names(qns))] %>% 
-  {.[. != "ParticipantID"]} %>% 
-  {.[. != "Plate ID"]} %>% 
-  {.[. != "ID"]} %>% 
-  c(., 'Barcode', 'Assay')
+about_table$redun_ids <- c(
+  "ID of All STOP questionnaire data 180118_v6",
+  "Stop_ID",
+  "ID of All STOP questionnaire data 180118_v11",
+  "ID of Untitled",
+  "Barcode",
+  "Assay"          
+)
 
 # Check a few redundant columns that have basically the same data
 stopifnot(
-  # Confirm `Assay` and `RID` were identical except three NAs of Assay
+  # Confirm `Assay` and `RID` were identical except three NAs in Assay
   isTRUE(
     all.equal(qns$RID[!is.na(qns$Assay)], qns$Assay[!is.na(qns$Assay)])
   ),
