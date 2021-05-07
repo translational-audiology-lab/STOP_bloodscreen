@@ -88,13 +88,17 @@ print(dim(qns0))
 # Collect info about the given table through clean-up of the table
 about_table <- list()
 
+# Two duplicated samples and two matching controls 
+# (email : 20191125 from Christopher)
+about_table$duplicated_sids <- tibble(
+  ID = c('US680082', 'VB209204',
+         'EF746947', 'AJ899088')
+) %>% 
+  left_join(select(qns0, ID, RID), by = "ID")
+
 qns <- qns0 %>% 
   # Remove two duplicated samples and two matching controls 
-  # (email : 20191125 from Christopher)
-  filter(
-    ! ID %in% c('US680082', 'VB209204',
-                'EF746947', 'AJ899088')
-  ) %>% 
+  filter(! ID %in% about_table$duplicated_sids$ID) %>% 
 
   # remove NPX values.
   select(-c(IL8:`CSF-1`, `Plate ID`, `QC Warning`)) %>%
