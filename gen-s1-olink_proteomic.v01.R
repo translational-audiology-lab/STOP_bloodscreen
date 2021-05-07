@@ -47,12 +47,20 @@ olink0 <- lapply(
 i_ctrl <- unique(olink0$SampleID) %>% 
   str_subset("^Mix_|^IPC|^Neg Control")
 
+
+unique(olink0$PlateID)
+
+olink1 <- olink0 %>% 
+  # extract plate ID and experiment date only
+  separate(PlateID, into = c("PlateID", NA, NA, NA, "experiment_date"), sep = "_") %>% 
+  mutate(PlateID = str_remove(PlateID, "^Plate") %>% as.integer)
+
 # Control samples
-olink_ctrl <- olink0 %>% 
+olink_ctrl <- olink1 %>% 
   filter(SampleID %in% i_ctrl)
 
 # Olink without those controls
-olink <- olink0 %>% 
+olink <- olink1 %>% 
   filter(!SampleID %in% i_ctrl)
 
 # Save --------------------------------------------------------------------
