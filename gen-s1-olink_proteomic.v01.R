@@ -51,6 +51,7 @@ i_ctrl <- unique(olink0$SampleID) %>%
 unique(olink0$PlateID)
 
 olink1 <- olink0 %>% 
+  mutate(MissingFreq = as.numeric(MissingFreq)) %>% # fix classes
   # extract plate ID and experiment date only
   separate(PlateID, into = c("PlateID", NA, NA, NA, "experiment_date"), sep = "_") %>% 
   mutate(PlateID = str_remove(PlateID, "^Plate") %>% as.integer)
