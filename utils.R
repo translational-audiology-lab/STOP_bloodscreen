@@ -1,15 +1,13 @@
 # ------------------------------------------------------------------------------
-# Useful functions
-# * irregular_cols
-# * geom_split_violin
-# * add_n
+# A collection of useful functions
 # ------------------------------------------------------------------------------
-# initiated on 2019-12-16
-# authors :  Mun-Gwan Hong
+# initiated on 2021-05-04
+# Editor : Mun-Gwan Hong
 # ------------------------------------------------------------------------------
 
 library(tidyverse)
 
+# -----------------------------------------------------------------------------#
 #' Find irregular columns such as too many NAs, just one value
 #'
 #' @param x a tibble or a data frame
@@ -17,6 +15,8 @@ library(tidyverse)
 #'   columns
 #'
 #' @return a list of column names
+#' @author Mun-Gwan Hong <\email{mungwan.hong@@nbis.se}>
+# -----------------------------------------------------------------------------#
 irregular_cols <- function(x, na_cuff_off = 0.8) {
   out <- list()
   
@@ -73,8 +73,6 @@ irregular_cols <- function(x, na_cuff_off = 0.8) {
 #' Violin plot showing different distribution on the left and right sides. The
 #' code of 'jan-glx' was obtained from StackOverflow (check the reference).
 #'
-#' @param file a Excel file from the manager
-#' 
 #' @param mapping,data,stat,position,...,draw_quantiles,trim,scale,na.rm,show.legend,inherit.aes check \code{\link{geom_violin}}
 #' 
 #' @author jan-glx
@@ -86,8 +84,6 @@ irregular_cols <- function(x, na_cuff_off = 0.8) {
 #' @import ggplot2
 #' @importFrom scales zero_range
 #' @export
-# -----------------------------------------------------------------------------#
-# created  : 2018-09-12 by Mun-Gwan
 # -----------------------------------------------------------------------------#
 geom_split_violin <- function(mapping = NULL,
                               data = NULL,
@@ -197,4 +193,63 @@ add_n <- function(
     position= position,
     na.rm= na.rm
   )
+}
+
+
+# -----------------------------------------------------------------------------#
+#' Extract NPX values as a matrix
+#' 
+#' Convert the NPX values stored in the longitudinal form of Olink data to a 
+#' matrix for matrix commputaion such as PCA.
+#'
+#' @param olinkdf a data frame created by \code{\link{OlinkAnalyze::read_NPX}}
+#'
+#' @return an Olink class object, which inherits matrix. The object contains NPX
+#'   values, where columns are Olink assays and rows are samples. @sinfo of the
+#'   object has sample information. 
+#' @author Mun-Gwan Hong <\email{mungwan.hong@@nbis.se}>
+# -----------------------------------------------------------------------------#
+as.matrix_olinkdf <- function(olinkdf) {
+  wide_format <- olinkdf %>% 
+    # exclude binder information
+    select(-c(UniProt, Assay, MissingFreq, Panel, Panel_Version, Normalization, LOD)) %>% 
+    pivot_wider(
+      names_from = OlinkID,
+      values_from = NPX
+    ) %>% 
+    mutate(id = make.names(SampleID, unique = TRUE))
+  
+  mat <- wide_format %>% 
+    select(id, starts_with("OID")) %>% 
+    column_to_rownames("id") %>% 
+    as.matrix()
+  sinfo <- wide_format %>% 
+    select(-starts_with("OID"))
+  
+  #' Class to handle Olink data like a matrix
+  #'  
+  #' @name Olink-class
+  #' @docType class
+  #' 
+  #' @slot .Data \code{\link{matrix}} - rows : samples, columns : binders\cr It 
+  #'   contains all NPX values. Its column names are reserved for Olink IDs.
+  #'   The row names are the unique sample IDs to link to \code{@@sinfo} assuring
+  #'   the order of sample is same in both.
+  #' @slot sinfo \code{\link{tbl_df}} - rows : samples, columns : variables, that
+  #'   contains sample information\cr Each row is for each sample. Each column has
+  #'   a type of information (e.g age) about the sample. A column \code{'id'} is 
+  #'   reserved for the unique identifiers of the samples.
+  #'   
+  #' @author Mun-Gwan Hong <\email{mungwan.hong@@nbis.se}>
+  
+  Olink <- setClass("Olink", slots = c(sinfo = "tbl_df"), contains = "matrix")
+  
+  setValidity("Olink", function(object) {
+    stopifnot(
+      "id" %in% names(object@sinfo),
+      identical(rownames(object@.Data), object@sinfo$id)
+    )
+  })
+  
+  new("Olink", mat, sinfo = sinfo)
 }
