@@ -134,9 +134,7 @@ The master file for R data generation. This executes following scripts in the
 proper order. 
 
 * `gen-s1-clinc.v01.R` : Read clinical info data
-* `gen-s2-olink_proteomic.v01.R` : Read Olink proteomic data
-* `gen-s2-olink_proteomic.v02.R` : Preprocess the Olink Proteomic data
-* `gen-s3-antibody.v01.R` : Read antibody data
+* `gen-s1-olink_proteomic.v01.R` : Read Olink proteomic data
 
 #### Other data generating scripts
 
