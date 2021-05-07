@@ -17,7 +17,7 @@ knit: (function(inputFile, encoding) {
   rmarkdown::render(inputFile, encoding= encoding, output_dir= "../reports") })
 ---
 
-```{r setup, echo=FALSE, include=FALSE}
+```{r clinic_qc-setup, echo=FALSE, include=FALSE}
 ## Pre-loaded packages
 # Please note that many functions were called directly from the package using 
 # double colon '::' to make the source clearer. 
@@ -47,7 +47,7 @@ knitr::opts_chunk$set(
 options(knitr.kable.NA = '')  # NA is shown as ''
 ```
 
-```{r Load data, purl=TRUE}
+```{r clinic_qc-Load data, purl=TRUE}
 ## File names
 fn <- list(
   lib = "utils.R",
@@ -60,7 +60,7 @@ fn <- list(
 stopifnot(all(file.exists(unlist(fn$i), fn$lib)))
 
 source(fn$lib)  # geom_split_violin
-# Loading clinical information ver.01
+# Load clinical information ver.01
 load(fn$i$c01)
 ```
 

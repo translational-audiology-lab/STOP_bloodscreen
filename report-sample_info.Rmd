@@ -17,7 +17,7 @@ knit: (function(inputFile, encoding) {
   rmarkdown::render(inputFile, encoding= encoding, output_dir= "../reports") })
 ---
 
-```{r setup, echo=FALSE, include=FALSE}
+```{r sinfo-setup, echo=FALSE, include=FALSE}
 ## Pre-loaded packages
 # Please note that many functions were called directly from the package using 
 # double colon '::' to make the source clearer. 
@@ -48,7 +48,7 @@ knitr::opts_chunk$set(
 options(knitr.kable.NA = '')  # NA is shown as ''
 ```
 
-```{r Load data, purl=TRUE}
+```{r sinfo-Load data, purl=TRUE}
 ## File names
 fn <- list(
   lib = "utils.R",
@@ -142,7 +142,7 @@ qns %>%
 
 The date and time of sample collection were seemingly balanced between cases and controls.
 
-```{r collection,fig.height=3}
+```{r sinfo-collection,fig.height=3}
 qns %>% 
   ggplot() +
   aes(x = `Collection Date`, fill= Tinnitus) +
