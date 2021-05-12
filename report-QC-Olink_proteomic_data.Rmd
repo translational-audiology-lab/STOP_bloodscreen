@@ -21,7 +21,6 @@ knit: (function(inputFile, encoding) {
 # double colon '::' to make the source clearer. 
 library(tidyverse)
 library(kableExtra)
-library(ggfortify)  # ggplot2::autoplot for PCA
 
 rm(list = ls())
 
@@ -296,10 +295,10 @@ during_qc$missing_tbl <- missing_tbl
 ### Summary
 
 * The number of samples analyzed by Olink assays and for which clinical information is available was `r n_samples_with_info`.
-* `r english::Words(n_distinct(missing_tbl$SampleID))` samples were found to contain missing values. 
-The whole measures of one or two panels of `r n_distinct(unlist(i_all_missing))` samples were missing.
-* Majority of **`r nrow(samples_too_many_llod)` sample**'s protein values in the `r unique(samples_too_many_llod$Panel)` were below LLOD. The data was **removed**.
-* The >50% values of **`r length(i_assys_too_many_llod)` proteins** were below LLOD, the data of which were **removed**.
+* `r english::Words(n_distinct(during_qc$missing_tbl$SampleID))` samples were found to contain missing values. 
+The whole measures of one or two panels of `r n_distinct(unlist(during_qc$i_all_missing))` samples were missing.
+* Majority of **`r nrow(during_qc$samples_too_many_llod)` sample**'s protein values in the `r unique(during_qc$samples_too_many_llod$Panel)` were below LLOD. The data was **removed**.
+* The >50% values of **`r length(during_qc$i_assys_too_many_llod)` proteins** were below LLOD, the data of which were **removed**.
 
 #### Dimension after the QC
 
