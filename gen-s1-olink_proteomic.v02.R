@@ -50,20 +50,36 @@ olink <- olink %>%
 # Table about samples with missing values
 missing_tbl <- olink %>% 
   filter(is.na(NPX)) %>% 
-  group_by(SampleID, Panel) %>% 
-  summarise(
-    PlateID = unique(PlateID),
-    N = n(),
-    OlinkIDs = paste(OlinkID, collapse = ",") %>% 
-      str_trunc(25),
-    .groups = "drop"
-  ) %>% 
+  select(SampleID, Panel, PlateID, OlinkID) %>% 
+  nest(OlinkIDs = OlinkID) %>% 
+  mutate(N = map_dbl(OlinkIDs, nrow), .before = OlinkIDs) %>% 
   arrange(SampleID, Panel, PlateID)
+during_qc$missing_tbl <- missing_tbl    # for report
 
 # Samples without any protein values per panel
 i_all_missing <- missing_tbl %>% 
   filter(N >= 92L) %>%
   {split(.$SampleID, .$Panel)}
+during_qc$i_all_missing <- i_all_missing    # for report
+
+# Isolated missing values
+isolated_missing <- missing_tbl %>% 
+  filter(N < 92)
+during_qc$isolated_missing <- isolated_missing     # for report
+
+# * Impute with median * #
+median_of_isolated <- olink %>% 
+  filter(OlinkID %in% unlist(isolated_missing$OlinkIDs)) %>% 
+  drop_na(NPX) %>% 
+  group_by(OlinkID) %>% 
+  summarise(m = median(NPX)) %>% 
+  left_join(unnest(isolated_missing, OlinkIDs), ., by = "OlinkID") %>% 
+  select(-PlateID, -N)
+
+olink <- olink %>% 
+  left_join(median_of_isolated, by = c("SampleID", "Panel", "OlinkID")) %>% 
+  mutate(NPX = if_else(is.na(NPX), m, NPX)) %>% 
+  select(-m)
 
 # Confirm a LOD was given per Olink assay
 olink %>%

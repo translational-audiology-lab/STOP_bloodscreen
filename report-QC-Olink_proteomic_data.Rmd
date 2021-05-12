@@ -177,20 +177,36 @@ Any <span style="background-color:greenyellow">preprocessing steps</span> that m
 # Table about samples with missing values
 missing_tbl <- olink %>% 
   filter(is.na(NPX)) %>% 
-  group_by(SampleID, Panel) %>% 
-  summarise(
-    PlateID = unique(PlateID),
-    N = n(),
-    OlinkIDs = paste(OlinkID, collapse = ",") %>% 
-      str_trunc(25),
-    .groups = "drop"
-  ) %>% 
+  select(SampleID, Panel, PlateID, OlinkID) %>% 
+  nest(OlinkIDs = OlinkID) %>% 
+  mutate(N = map_dbl(OlinkIDs, nrow), .before = OlinkIDs) %>% 
   arrange(SampleID, Panel, PlateID)
+during_qc$missing_tbl <- missing_tbl    # for report
 
 # Samples without any protein values per panel
 i_all_missing <- missing_tbl %>% 
   filter(N >= 92L) %>%
   {split(.$SampleID, .$Panel)}
+during_qc$i_all_missing <- i_all_missing    # for report
+
+# Isolated missing values
+isolated_missing <- missing_tbl %>% 
+  filter(N < 92)
+during_qc$isolated_missing <- isolated_missing     # for report
+
+# * Impute with median * #
+median_of_isolated <- olink %>% 
+  filter(OlinkID %in% unlist(isolated_missing$OlinkIDs)) %>% 
+  drop_na(NPX) %>% 
+  group_by(OlinkID) %>% 
+  summarise(m = median(NPX)) %>% 
+  left_join(unnest(isolated_missing, OlinkIDs), ., by = "OlinkID") %>% 
+  select(-PlateID, -N)
+
+olink <- olink %>% 
+  left_join(median_of_isolated, by = c("SampleID", "Panel", "OlinkID")) %>% 
+  mutate(NPX = if_else(is.na(NPX), m, NPX)) %>% 
+  select(-m)
 ```
 
 `r english::Words(n_distinct(missing_tbl$SampleID))` samples were found to contain missing values. 
@@ -206,11 +222,11 @@ missing_tbl %>%
   kable_styling(full_width = FALSE)
 ```
 
-The NPX values of `r english::words(sum(missing_tbl$N < 92))` sample were missing for only a couple of assays, which is quite unusual.
+The NPX values of `r english::words(sum(missing_tbl$N < 92))` sample were missing for only a couple of assays, which is quite unusual. 
+<span style="background-color:greenyellow">Those missing values were imputed with medians of the assays.</span>
 
 ```{r}
-missing_tbl %>% 
-  filter(N < 92) %>% 
+isolated_missing %>% 
   select(-N) %>% 
   kbl(caption = "Sample with unusual isolated missing values") %>% 
   kable_styling(full_width = FALSE)
@@ -288,8 +304,6 @@ olink <- olink %>%
 # for report
 during_qc$i_assys_too_many_llod <- i_assys_too_many_llod
 during_qc$samples_too_many_llod <- samples_too_many_llod
-during_qc$i_all_missing <- i_all_missing
-during_qc$missing_tbl <- missing_tbl
 ```
 
 ### Summary
