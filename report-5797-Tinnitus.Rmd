@@ -149,7 +149,7 @@ Here 548 patients and 548 controls matched for age and sex were analyzed.
 
 The website for this study : [stop.ki.se](http://stop.ki.se)
 
-# About samples and clinical data
+# Whole samples in the study
 
 ```{r child = "report-sample_info.Rmd"}
 ```
@@ -160,12 +160,15 @@ The website for this study : [stop.ki.se](http://stop.ki.se)
 ```
 
 
-# Olink Data
+# QC of Olink Data
 
 ```{r child = "report-QC-Olink_proteomic_data.Rmd"}
 ```
 
+# Overview of the data after QC
 
+```{r child = "report-overview_after_QC.Rmd"}
+```
 
 ----------------------------
 

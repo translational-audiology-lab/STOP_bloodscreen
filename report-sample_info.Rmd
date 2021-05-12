@@ -1,5 +1,5 @@
 ---
-title: "About samples and clinical data"
+title: "Whole samples in the study"
 author: "Mun-Gwan Hong"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
@@ -66,7 +66,9 @@ load(fn$i$c01)
 ```
 
 * *All information about samples was initially obtained from the file, `All STOP questionnaire data 180118_v14_BloodAnalysis_v2.xlsx`*.
-* The results presented in this section are based on the data after QC of the given data. The QC is described thoroughly in the section "QC of clinical data table". 
+* The results presented in this section are based on the data after QC of the given data.
+**Please note that the samples _without_ proteomic data were also included in the following investigation**
+* The QC is described thoroughly in the section "QC of clinical data table". 
 
 ## Matching between cases and controls
 
