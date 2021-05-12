@@ -1,0 +1,368 @@
+---
+title: "Olink proteomic data - Quality control"
+author: "Mun-Gwan Hong"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: 
+      collapse : false
+    toc_depth: 4
+    # code_folding: hide
+    number_sections: true
+    css: styles.css
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding= encoding, output_dir= "../reports") })
+---
+
+```{r setup, echo=FALSE, include=FALSE}
+## Pre-loaded packages
+# Please note that many functions were called directly from the package using 
+# double colon '::' to make the source clearer. 
+library(tidyverse)
+library(kableExtra)
+library(ggfortify)  # ggplot2::autoplot for PCA
+
+rm(list = ls())
+
+knitr::knit_hooks$set(
+  optipng = knitr::hook_optipng   # Optimize PNG plots
+)
+knitr::opts_chunk$set(
+	echo = FALSE,   # comment out for code_folding
+	# dev = c('pdf'), fig.path = '../results/figures/', # export figures to pdf files
+  fig.width  = 8,
+  fig.height = 6,
+  results = "asis",   # for HTML
+  message = FALSE,    # no message from the code
+  warning = FALSE,    # no warning from the code
+	eval.after = "fig.cap",    # to add fig. caption within the chunk
+  optipng = '-o1 -zc9', # Optimize 'png' plots
+	purl = FALSE      # because most of the code are not to be extracted
+)
+options(knitr.kable.NA = '')  # NA is shown as ''
+```
+
+```{r Load data, purl=TRUE}
+## File names
+fn <- list(
+	i = list(                               # input
+    olk01 = "../data/s1-olink_proteomic.v01.RData", 
+    c01 = "../data/s1-clinical.v01.RData"
+	)
+)
+# Check all exists
+stopifnot(all(file.exists(unlist(fn$i))))
+
+# Load proteomic data ver.01
+load(fn$i$olk01)
+# To confirm sample IDs
+load(fn$i$c01)
+```
+
+## Experimental design
+
+### Overview
+
+```{r excl.no_clinic_info, purl=TRUE}
+# A table of QC warnings given to samples per panel
+sample_warning <- olink %>% 
+  distinct(SampleID, Panel, QC_Warning) %>% 
+  pivot_wider(SampleID, names_from = Panel, values_from = QC_Warning)
+
+# confirm no NA - Identical samples in both panels
+stopifnot(all(!is.na(sample_warning)))
+
+samples_in_olink_only <- setdiff(sample_warning$SampleID, qns$RID)
+
+# * The samples without clinical information were excluded in the following analysis * #
+olink <- olink %>% 
+  filter(! SampleID %in% samples_in_olink_only)
+
+panels <- unique(olink$Panel)
+```
+
+```{r}
+samples_excluded_as_duplicated <- samples_in_olink_only %>% 
+  subset(., . %in% about_table$duplicated_sids$RID)
+
+tmp <- olink %>% 
+  distinct(Panel, Panel_Version) %>% 
+  mutate(p_pv = str_c(Panel, " (", Panel_Version, ")")) %>% 
+  pull(p_pv)
+
+n_samples_with_info <- n_distinct(olink$SampleID)
+```
+
+In total, `r nrow(sample_warning)` samples were analyzed on `r n_distinct(olink$PlateID)` plates using `r knitr::combine_words(tmp)` panels. 
+Among the samples, `r english::words(length(samples_excluded_as_duplicated))` were those which were excluded due to duplication of samples (matched controls, `r knitr::combine_words(samples_excluded_as_duplicated, before = "&#x60;")`).
+`r english::Words(length(samples_in_olink_only) - length(samples_excluded_as_duplicated))` 
+were found analyzed without any provided clinical information. 
+Because they were additional samples that cannot be analyzed further, they are not counted in the following investigation. 
+The number of samples analyzed by Olink assays and for which clinical information is available was `r n_samples_with_info`. 
+
+### Samples per plate
+
+The number of samples per plate was shown below. 
+
+```{r, fig.width=6, fig.height=2.8}
+sample_plate_qns <- olink %>% 
+  distinct(SampleID, PlateID) %>% 
+  left_join(sample_warning, by = "SampleID") %>% 
+  left_join(select(qns, RID, Tinnitus), by = c("SampleID" = "RID")) %>% 
+  mutate(PlateID = format(PlateID))
+# confirm the same Plate IDs in both panels
+stopifnot(nrow(sample_plate_qns) == nrow(filter(sample_warning, !SampleID %in% samples_in_olink_only)))
+
+ggplot(sample_plate_qns) +
+  geom_bar(aes(y = PlateID, fill = Tinnitus)) +
+  coord_fixed(ratio = 10)
+
+# QC warnings
+for(ii in panels) {
+  p <- ggplot(sample_plate_qns) +
+    aes(y = PlateID) +
+    aes_string(fill = paste0("`", ii, "`")) +
+    geom_bar() +
+    coord_fixed(ratio = 10) +
+    ggtitle(paste(ii, "panel")) +
+    guides(fill = guide_legend(title = "QC warning"))
+  print(p)
+}
+```
+
+### Experimental control samples
+
+The given data set included negative controls (NEG), inter-plate controls (IPC), and `Mix` samples in addition to those clinical samples. 
+The number of them in each plate is shown the tables below. 
+
+```{r}
+tmp <- olink_ctrl %>% 
+  nest(data = -Panel) %>% 
+  mutate(
+    data = map(
+      data,
+      . %>% 
+        distinct(SampleID, Index, PlateID) %>%
+        mutate(SampleID = sub("Mix_[[:digit:]]{1,2}\\.[[:digit:]]", "Mix", SampleID)) %>% 
+        group_by(SampleID, PlateID) %>% 
+        summarise(value = n(), .groups = "drop") %>% 
+        mutate(PlateID = format(PlateID)) %>% 
+        pivot_wider(SampleID, names_from = PlateID)    )
+  )
+for(ii in 1:nrow(tmp)) {
+  tmp$data[[ii]] %>% 
+    kbl(caption = paste("Included NEG/IPC/Mix samples -", tmp$Panel[[ii]])) %>% 
+    kable_styling(full_width= FALSE) %>% 
+    print()
+}
+```
+
+------------------------
+
+## Quality control
+
+### Note
+
+Any <span style="background-color:greenyellow">preprocessing steps</span> that modify the given data were highlighted by <span style="background-color:greenyellow">green yellow background</span> in the following sections.
+
+
+### Missing values
+
+```{r missing values prep}
+# Table about samples with missing values
+missing_tbl <- olink %>% 
+  filter(is.na(NPX)) %>% 
+  group_by(SampleID, Panel) %>% 
+  summarise(
+    PlateID = unique(PlateID),
+    N = n(),
+    OlinkIDs = paste(OlinkID, collapse = ",") %>% 
+      str_trunc(25),
+    .groups = "drop"
+  ) %>% 
+  arrange(SampleID, Panel, PlateID)
+
+# Samples without any protein values per panel
+i_all_missing <- missing_tbl %>% 
+  filter(N >= 92L) %>%
+  {split(.$SampleID, .$Panel)}
+```
+
+`r english::Words(n_distinct(missing_tbl$SampleID))` samples were found to contain missing values. 
+The whole measures of one or two panels of `r n_distinct(unlist(i_all_missing))` samples were missing as listed in the table below
+
+```{r}
+missing_tbl %>% 
+  filter(N == 92L) %>% 
+  mutate(value = "Missing") %>% 
+  arrange(PlateID, SampleID) %>% 
+  pivot_wider(c(SampleID, PlateID), "Panel") %>% 
+  kbl(caption = "Samples with missing data for whole panel") %>% 
+  kable_styling(full_width = FALSE)
+```
+
+The NPX values of `r english::words(sum(missing_tbl$N < 92))` sample were missing for only a couple of assays, which is quite unusual.
+
+```{r}
+missing_tbl %>% 
+  filter(N < 92) %>% 
+  select(-N) %>% 
+  kbl(caption = "Sample with unusual isolated missing values") %>% 
+  kable_styling(full_width = FALSE)
+```
+
+### Below LOD
+
+```{r purl=TRUE}
+# Confirm a LOD was given per Olink assay
+olink %>%
+  distinct(OlinkID, LOD, MissingFreq) %>% 
+  {stopifnot(anyDuplicated(.$OlinkID) == 0)}
+
+# Compute the below LLOD proportion, which is different from `MissingFreq`
+# due to the samples with missing values
+below_lod_prop <- olink %>% 
+  drop_na(NPX) %>% {
+    list(
+      by_assay = group_by(., OlinkID),
+      by_sample = group_by(., SampleID, Panel)
+    )
+  } %>% 
+  lapply(. %>% summarise(below_lod_prop = sum(NPX <= LOD) / n(), .groups = "drop"))
+
+# Assays having too many LLOD
+i_assys_too_many_llod <- below_lod_prop$by_assay %>% 
+  filter(below_lod_prop > 0.5) %>% 
+  pull(OlinkID)
+
+##  the sample having too many LLOD
+samples_too_many_llod <- below_lod_prop$by_sample %>% 
+  filter(below_lod_prop > 0.5)
+```
+
+Some measures were below lower-limit of detection (LLOD) of the assays. 
+The distribution of how much proportion of the measures of each protein were below LLOD is shown below,
+where two separate clusters were observed. 
+One of them with low proportion of LLOD indicates that the sensitivity of the assays for the proteins in the group was high enough to achieve relative quantification from the samples.
+Whereas, the assays for the other cluster couldn't produce comparable data.
+<span style="background-color:greenyellow">The >50% values of **`r length(i_assys_too_many_llod)` proteins** were below LLOD, the data of which were **removed**.</span>
+Note that the LLOD was computed per assay (or protein) for all plates.
+
+```{r}
+p <- olink %>% 
+  distinct(OlinkID, Panel) %>% 
+  left_join(below_lod_prop$by_assay, by = "OlinkID") %>% 
+  ggplot() +
+  aes(x= below_lod_prop) +
+  aes(fill = if_else(OlinkID %in% i_assys_too_many_llod, "Excluded", "Included")) +
+  geom_histogram(bins = 30) +
+  xlab("The proportion of the values below LLOD") +
+  ylab("Nr. of Proteins") +
+  guides(fill = guide_legend(title = "Data"))
+
+p + ggtitle("Historgram of the prop. of <LLOD")
+
+p + 
+  ggtitle("Historgram of the prop. of <LLOD") +
+  facet_grid(Panel ~ .)
+```
+
+Majority of **`r nrow(samples_too_many_llod)` sample**'s protein values in the `r unique(samples_too_many_llod$Panel)` were below LLOD.
+<span style="background-color:greenyellow">The data of the samples without protein data or with too many LLOD were **removed**.</span> 
+
+```{r purl=TRUE}
+olink <- olink %>%
+  drop_na(NPX) %>% 
+  # Exclude those assays with too many values below LLOD
+  filter(! OlinkID %in% i_assys_too_many_llod) %>% 
+  # Exclude those samples with too many values below LLOD
+  left_join(samples_too_many_llod, by = c("SampleID", "Panel")) %>% 
+  filter(is.na(below_lod_prop)) %>% 
+  select(-below_lod_prop)
+```
+
+### Summary
+
+* The number of samples analyzed by Olink assays and for which clinical information is available was `r n_samples_with_info`.
+* `r english::Words(n_distinct(missing_tbl$SampleID))` samples were found to contain missing values. 
+The whole measures of one or two panels of `r n_distinct(unlist(i_all_missing))` samples were missing.
+* Majority of **`r nrow(samples_too_many_llod)` sample**'s protein values in the `r unique(samples_too_many_llod$Panel)` were below LLOD. The data was **removed**.
+* The >50% values of **`r length(i_assys_too_many_llod)` proteins** were below LLOD, the data of which were **removed**.
+
+#### Dimension after the QC
+
+```{r}
+olink %>% 
+  group_by(Panel) %>% 
+  summarise(
+    Samples = n_distinct(SampleID),
+    Proteins = n_distinct(OlinkID)
+  ) %>% 
+  kbl() %>% 
+  kable_styling(full_width = FALSE)
+```
+
+### Detailed list of excluded samples and proteins
+
+#### Samples
+
+##### Samples without any protein values per panel
+
+```{r}
+for(ii in panels) {
+  qns %>% 
+    filter(RID %in% i_all_missing[[ii]]) %>% 
+    select(RID, ParticipantID, Tinnitus, `Sampling Age`, `Sample Lab`, ID) %>% 
+    kable(caption = ii) %>% 
+    kable_styling(full_width = F) %>% 
+    print()
+}
+```
+
+##### Sample having too many values below LLOD
+
+```{r}
+qns %>% 
+  filter(RID %in% samples_too_many_llod$SampleID) %>% 
+  select(RID, ParticipantID, Tinnitus, `Sampling Age`, `Sample Lab`, ID) %>% 
+  kable(caption = "") %>% 
+  kable_styling(full_width = F) 
+```
+
+#### Assays
+
+##### Assays having too many values below LLOD
+
+```{r}
+# to show table grouped by panel
+tmp <- olink0 %>% 
+  distinct(OlinkID, Panel, Assay, UniProt, LOD) %>% 
+  right_join(below_lod_prop$by_assay, by = "OlinkID") %>% 
+  filter(OlinkID %in% i_assys_too_many_llod) %>% 
+  mutate(below_lod_prop = sprintf("%3.f%%", below_lod_prop * 100)) %>% 
+  arrange(desc(below_lod_prop)) %>% 
+  rename(
+    "Protein" = "Assay", 
+    "UniProt ID" = "UniProt", 
+    "LLOD prop." = "below_lod_prop"
+  )
+
+for(ii in panels) {
+  tmp %>% 
+    filter(Panel == ii) %>% 
+    select(-Panel) %>% 
+    kbl(caption = ii, align = "lllrr") %>% 
+    kable_styling(full_width = F) %>% 
+    print()
+}
+```
+
+
+
+
+
+
+
+
+

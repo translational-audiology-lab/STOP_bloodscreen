@@ -200,32 +200,63 @@ add_n <- function(
 #' Extract NPX values as a matrix
 #' 
 #' Convert the NPX values stored in the longitudinal form of Olink data to a 
-#' matrix for matrix commputaion such as PCA.
+#' matrix for matrix computation such as PCA.
 #'
 #' @param olinkdf a data frame created by \code{\link{OlinkAnalyze::read_NPX}}
+#' @param unique_id The name of the column having unique sample IDs.
 #'
 #' @return an Olink class object, which inherits matrix. The object contains NPX
 #'   values, where columns are Olink assays and rows are samples. @sinfo of the
 #'   object has sample information. 
 #' @author Mun-Gwan Hong <\email{mungwan.hong@@nbis.se}>
 # -----------------------------------------------------------------------------#
-as.matrix_olinkdf <- function(olinkdf) {
-  wide_format <- olinkdf %>% 
-    # exclude binder information
-    select(-c(UniProt, Assay, MissingFreq, Panel, Panel_Version, Normalization, LOD)) %>% 
-    pivot_wider(
-      names_from = OlinkID,
-      values_from = NPX
-    ) %>% 
-    mutate(id = make.names(SampleID, unique = TRUE))
+as.matrix_olinkdf <- function(olinkdf, unique_id = SampleID){
+  wo_binder <- olinkdf %>% 
+    # exclude the information about binders
+    select(-any_of(c("UniProt", "Assay", "MissingFreq", "Panel_Version", 
+                     "Normalization", "LOD")))
   
-  mat <- wide_format %>% 
-    select(id, starts_with("OID")) %>% 
-    column_to_rownames("id") %>% 
+  # as character
+  unique_id_name <- as.character(enexpr(unique_id))
+  
+  # Extract NPX and convert it to a matrix
+  mat <- wo_binder %>%
+    pivot_wider({{unique_id}}, names_from = OlinkID, values_from = NPX) %>%
+    column_to_rownames(unique_id_name) %>%
     as.matrix()
-  sinfo <- wide_format %>% 
-    select(-starts_with("OID"))
+
+  # one row per distinct sample info (possibly multiple lines per unique sample)
+  distinct_sinfo <- wo_binder %>% 
+    select(-OlinkID, -NPX) %>% 
+    distinct() %>% 
+    # simplify Panel name
+    mutate(
+      Panel = str_remove(Panel, "Olink ") %>% 
+        str_remove("Target 96 ") %>% 
+        str_sub(1, 3)
+    )
   
+  # Is the values the same for each sample
+  is_same <- distinct_sinfo %>% 
+    group_by({{unique_id}}) %>% 
+    summarise(across(.fns = function(.x) n_distinct(.x) == 1)) %>% 
+    select(-SampleID, -Panel) %>% 
+    sapply(all)
+  
+  # One line per sample
+  tmp <- distinct_sinfo %>% 
+    select({{unique_id}}, Panel, all_of(names(is_same)[!is_same])) %>% 
+    # Expand table to wider format for multiple panels
+    pivot_wider(
+      {{unique_id}}, 
+      names_from = Panel, 
+      values_from = -c({{unique_id}}, Panel)
+    )
+  sinfo <- distinct_sinfo %>%
+    distinct({{unique_id}}, .keep_all = T) %>% 
+    select({{unique_id}}, all_of(names(is_same)[is_same])) %>% 
+    left_join(tmp, by = unique_id_name)
+    
   #' Class to handle Olink data like a matrix
   #'  
   #' @name Olink-class
@@ -245,11 +276,15 @@ as.matrix_olinkdf <- function(olinkdf) {
   Olink <- setClass("Olink", slots = c(sinfo = "tbl_df"), contains = "matrix")
   
   setValidity("Olink", function(object) {
-    stopifnot(
-      "id" %in% names(object@sinfo),
-      identical(rownames(object@.Data), object@sinfo$id)
-    )
+    stopifnot(identical(rownames(object@.Data), object@sinfo$id))
   })
   
-  new("Olink", mat, sinfo = sinfo)
+  new(
+    "Olink", 
+    mat, 
+    sinfo = sinfo %>% 
+      # create 'id' column for standardized ID column name
+      mutate(id = {{unique_id}}, .before = {{unique_id}}) %>% 
+      select(-{{unique_id}})
+  )
 }
