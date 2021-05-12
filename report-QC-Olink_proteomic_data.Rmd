@@ -58,6 +58,11 @@ stopifnot(all(file.exists(unlist(fn$i))))
 load(fn$i$olk01)
 # To confirm sample IDs
 load(fn$i$c01)
+
+panels <- unique(olink$Panel)
+
+# initialize the variable that collects info during QC
+during_qc <- list()
 ```
 
 ## Experimental design
@@ -79,7 +84,7 @@ samples_in_olink_only <- setdiff(sample_warning$SampleID, qns$RID)
 olink <- olink %>% 
   filter(! SampleID %in% samples_in_olink_only)
 
-panels <- unique(olink$Panel)
+during_qc$samples_in_olink_only <- samples_in_olink_only # for report
 ```
 
 ```{r}
@@ -169,7 +174,7 @@ Any <span style="background-color:greenyellow">preprocessing steps</span> that m
 
 ### Missing values
 
-```{r}
+```{r, purl=TRUE}
 # Table about samples with missing values
 missing_tbl <- olink %>% 
   filter(is.na(NPX)) %>% 
@@ -281,6 +286,11 @@ olink <- olink %>%
   left_join(samples_too_many_llod, by = c("SampleID", "Panel")) %>% 
   filter(is.na(below_lod_prop)) %>% 
   select(-below_lod_prop)
+# for report
+during_qc$i_assys_too_many_llod <- i_assys_too_many_llod
+during_qc$samples_too_many_llod <- samples_too_many_llod
+during_qc$i_all_missing <- i_all_missing
+during_qc$missing_tbl <- missing_tbl
 ```
 
 ### Summary

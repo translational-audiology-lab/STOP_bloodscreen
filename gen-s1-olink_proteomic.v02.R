@@ -30,6 +30,9 @@ load(fn$i$c01)
 
 panels <- unique(olink$Panel)
 
+# initialize the variable that collects info during QC
+during_qc <- list()
+
 # A table of QC warnings given to samples per panel
 sample_warning <- olink %>% 
   distinct(SampleID, Panel, QC_Warning) %>% 
@@ -43,6 +46,24 @@ samples_in_olink_only <- setdiff(sample_warning$SampleID, qns$RID)
 # * The samples without clinical information were excluded in the following analysis * #
 olink <- olink %>% 
   filter(! SampleID %in% samples_in_olink_only)
+
+# Table about samples with missing values
+missing_tbl <- olink %>% 
+  filter(is.na(NPX)) %>% 
+  group_by(SampleID, Panel) %>% 
+  summarise(
+    PlateID = unique(PlateID),
+    N = n(),
+    OlinkIDs = paste(OlinkID, collapse = ",") %>% 
+      str_trunc(25),
+    .groups = "drop"
+  ) %>% 
+  arrange(SampleID, Panel, PlateID)
+
+# Samples without any protein values per panel
+i_all_missing <- missing_tbl %>% 
+  filter(N >= 92L) %>%
+  {split(.$SampleID, .$Panel)}
 
 # Confirm a LOD was given per Olink assay
 olink %>%
@@ -79,4 +100,11 @@ olink <- olink %>%
   filter(is.na(below_lod_prop)) %>% 
   select(-below_lod_prop)
 
-save(olink, olink_ctrl, as.matrix_olinkdf, file = fn$o$olk02)
+# for report
+during_qc$i_assys_too_many_llod <- i_assys_too_many_llod
+during_qc$samples_too_many_llod <- samples_too_many_llod
+during_qc$i_all_missing <- i_all_missing
+during_qc$missing_tbl <- missing_tbl
+
+
+save(olink, olink_ctrl, as.matrix_olinkdf, during_qc, file = fn$o$olk02)
