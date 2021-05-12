@@ -15,8 +15,6 @@ source("gen-s1-clinical.v01.R")
 source("gen-s1-olink_proteomic.v01.R")
 
 # Preprocessing of Olink Proteomic data
-#   - details in 'report-QC-Olink_proteomic_data.Rmd'
-#   - Exclude failed samples
-#   - 'olink_lod' = replace values below LOD
+#   - details in `report-QC-Olink_proteomic_data.Rmd`
 source("gen-s1-olink_proteomic.v02.R")
 

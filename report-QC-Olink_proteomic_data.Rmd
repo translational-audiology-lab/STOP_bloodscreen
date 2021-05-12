@@ -15,7 +15,7 @@ knit: (function(inputFile, encoding) {
   rmarkdown::render(inputFile, encoding= encoding, output_dir= "../reports") })
 ---
 
-```{r setup, echo=FALSE, include=FALSE}
+```{r olink qc - setup, echo=FALSE, include=FALSE}
 ## Pre-loaded packages
 # Please note that many functions were called directly from the package using 
 # double colon '::' to make the source clearer. 
@@ -43,7 +43,7 @@ knitr::opts_chunk$set(
 options(knitr.kable.NA = '')  # NA is shown as ''
 ```
 
-```{r Load data, purl=TRUE}
+```{r olink qc - Load data, purl=TRUE}
 ## File names
 fn <- list(
 	i = list(                               # input
@@ -64,7 +64,7 @@ load(fn$i$c01)
 
 ### Overview
 
-```{r excl.no_clinic_info, purl=TRUE}
+```{r, purl=TRUE}
 # A table of QC warnings given to samples per panel
 sample_warning <- olink %>% 
   distinct(SampleID, Panel, QC_Warning) %>% 
@@ -169,7 +169,7 @@ Any <span style="background-color:greenyellow">preprocessing steps</span> that m
 
 ### Missing values
 
-```{r missing values prep}
+```{r}
 # Table about samples with missing values
 missing_tbl <- olink %>% 
   filter(is.na(NPX)) %>% 
@@ -214,7 +214,7 @@ missing_tbl %>%
 
 ### Below LOD
 
-```{r purl=TRUE}
+```{r, purl=TRUE}
 # Confirm a LOD was given per Olink assay
 olink %>%
   distinct(OlinkID, LOD, MissingFreq) %>% 
@@ -271,7 +271,8 @@ p +
 Majority of **`r nrow(samples_too_many_llod)` sample**'s protein values in the `r unique(samples_too_many_llod$Panel)` were below LLOD.
 <span style="background-color:greenyellow">The data of the samples without protein data or with too many LLOD were **removed**.</span> 
 
-```{r purl=TRUE}
+```{r, purl=TRUE}
+# * QC below LLOD * #
 olink <- olink %>%
   drop_na(NPX) %>% 
   # Exclude those assays with too many values below LLOD

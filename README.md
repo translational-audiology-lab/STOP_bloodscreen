@@ -114,7 +114,7 @@ are ready in expected folders. The files were listed below the code lines.
 
 ```R
 source("master_data_generation.R")   # data generation
-rmarkdown::render("report.Rmd")    # report writing
+rmarkdown::render("report-5797-Tinnitus.Rmd")    # report writing
 ```
 
 
