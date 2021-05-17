@@ -53,7 +53,8 @@ olink1 <- olink0 %>%
   separate(PlateID, into = c("PlateID", NA, NA, NA, "experiment_date"), sep = "_") %>% 
   mutate(
     PlateID = str_remove(PlateID, "^Plate") %>% as.integer,
-    Panel = str_remove(Panel, "^Olink ")
+    Panel = str_remove(Panel, "^Olink ") %>% 
+      str_to_title()
   )
 
 # Control samples
