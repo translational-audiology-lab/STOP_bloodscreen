@@ -5,7 +5,9 @@
 # Editor : Mun-Gwan Hong
 # ------------------------------------------------------------------------------
 
-library(tidyverse)
+## Pre-loaded packages
+library(tidyverse)  # %>%, ...
+library(sfsmisc) # toLatex.numeric : * 10^x format
 
 # -----------------------------------------------------------------------------#
 #' Find irregular columns such as too many NAs, just one value
@@ -15,6 +17,10 @@ library(tidyverse)
 #'   columns
 #'
 #' @return a list of column names
+#' @examples 
+#' x <- data.frame(x1 = 1:100, x2 = c(rep(NA, 81), 82:100), x3 = rep("A", 100))
+#' irregular_cols(x)
+#' 
 #' @author Mun-Gwan Hong <\email{mungwan.hong@@nbis.se}>
 # -----------------------------------------------------------------------------#
 irregular_cols <- function(x, na_cuff_off = 0.8) {
@@ -22,7 +28,7 @@ irregular_cols <- function(x, na_cuff_off = 0.8) {
   
   # Mostly NA columns
   out$mostly_na <- x %>% 
-    select_if(~sum(is.na(.)) > (length(.) * na_cuff_off)) %>% 
+    select(where(~ sum(is.na(.x)) > (length(.x) * na_cuff_off))) %>% 
     names()
   
   # Just one identical value for all entries of a column
@@ -231,8 +237,7 @@ as.matrix_olinkdf <- function(olinkdf, unique_id = SampleID){
     distinct() %>% 
     # simplify Panel name
     mutate(
-      Panel = str_remove(Panel, "Olink ") %>% 
-        str_remove("Target 96 ") %>% 
+      Panel = str_remove(Panel, "Target 96 ") %>% 
         str_sub(1, 3)
     )
   
@@ -288,3 +293,25 @@ as.matrix_olinkdf <- function(olinkdf, unique_id = SampleID){
       select(-{{unique_id}})
   )
 }
+
+
+#' Show p-value in 10^x format
+#'
+#' @param pval a p-value
+#' @param digits the number of significant digits
+#'
+#' @return a character in the format of \code{`$num \\cdot 10^{exp}$`}
+#' @import sfsmisc
+#' @export
+#'
+#' @seealso [signif()], [sfsmisc:::toLatex.numeric()]
+#' @examples
+#' pval_toLatex(1.234e-7)
+pval_toLatex <- function(pval, digits = 3) {
+  signif(pval, 3) %>% 
+    toLatex() %>%  # sfsmisc:::toLatex.numeric : * 10^x format
+    paste0("$", ., "$")
+}
+
+
+
