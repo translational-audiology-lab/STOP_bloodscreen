@@ -24,7 +24,7 @@ fn <- list(
 )
 
 # Brief check if all files exist
-stopifnot(all(file.exists(c(unlist(fn$i), fn$lib, dirname(unlist(fn$o))))))
+stopifnot(all(file.exists(c(fn$lib, unlist(fn$i), dirname(unlist(fn$o))))))
 # Warn any difference in input file(s) using MD5 hash
 if(!all(
   tools::md5sum(fn$i$olink$INF) == "42f834d68c672ff0bdbf5bfcc48fe68d",
@@ -47,14 +47,14 @@ olink0 <- lapply(
 i_ctrl <- unique(olink0$SampleID) %>% 
   str_subset("^Mix_|^IPC|^Neg Control")
 
-
-unique(olink0$PlateID)
-
 olink1 <- olink0 %>% 
   mutate(MissingFreq = as.numeric(MissingFreq)) %>% # fix classes
   # extract plate ID and experiment date only
   separate(PlateID, into = c("PlateID", NA, NA, NA, "experiment_date"), sep = "_") %>% 
-  mutate(PlateID = str_remove(PlateID, "^Plate") %>% as.integer)
+  mutate(
+    PlateID = str_remove(PlateID, "^Plate") %>% as.integer,
+    Panel = str_remove(Panel, "^Olink ")
+  )
 
 # Control samples
 olink_ctrl <- olink1 %>% 
