@@ -392,11 +392,11 @@ layer1 <- list(
 )
 ```
 
-###### 1st principal component
+* 1st principal component
 
 Basically all loadings for the 1st PC were of the same sign, positive. 
 The values were decreasing gradually from highest to lowest without any greater drop. 
-The PC1 might have primarily reflected the variation driven by overall magnitude of **measured** protein values. 
+The PC1 might have reflected the variation primarily driven by overall magnitude of **measured** protein values. 
 
 ```{r, fig.height=4, fig.width=10}
 for(ii in names(pca)) {
@@ -412,63 +412,3 @@ for(ii in names(pca)) {
   
 ```
 
-###### 2nd principal component
-
-Unlike the 1st PC, the loadings of the 2nd PC had mixed signs. 
-The signs of them were mostly associated with panels for the top 70 proteins by magnitude shown below,
-which indicates the 2nd PC for all panels reflected differences between panels.
-
-```{r, fig.height=7, fig.width=10}
-pca_loading[["All panels"]] %>% 
-  slice_max(abs(PC2), n = 70) %>% 
-  mutate(Protein = factor(Protein, levels= Protein)) %>%    # sorted by PC2
-  ggplot() +
-  aes(y = PC2, x = Protein, fill = Panel) +
-  geom_bar(stat= 'identity') +
-  ggtitle("All panels (top 70 proteins)") +
-  scale_fill_manual(values = c("skyblue3", "pink3")) +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
-```
-
-Substantial difference of loadings for the 2nd PC in both magnitude and sign was observed across proteins even in individual panels.
-A few proteins contributed considerably more to the PC2 than others. 
-Due to that, a considerable drop of loadings was observed on the left side of the loading plots below. 
-```{r, fig.height=4, fig.width=10}
-for(ii in panels) {
-  p <- pca_loading[[ii]] %>% 
-    arrange(desc(abs(PC2))) %>% 
-    mutate(Protein = factor(Protein, levels= Protein)) %>%   # sorted by PC2
-    ggplot() +
-    aes(y = abs(PC2), x = Protein, fill= as.character(sign(PC2))) +
-    labs(title = ii, y = "Absolute value of PC2", fill = "PC2 sign") +
-    layer1
-  print(p)
-}
-```
-
-Those most contributing proteins were of the same sign and correlated each other.
-
-```{r,fig.cap=fig_cap}
-fig_cap = paste(
-  "The values in the upper triangle are pearson correlation coefficients,",
-  "while each dot in the lower triangle was NPX values of one sample."
-)
-# Top 6 proteins with highest loadings for PC2
-top_pc2 <- lapply(
-  pca_loading,
-  . %>%
-    slice_max(abs(PC2), n = 6) %>%
-    pull(Protein)
-)
-
-for(ii in panels) {
-  p <- olink %>%
-    filter(Assay %in% top_pc2[[ii]]) %>% 
-    pivot_wider(SampleID, names_from = Assay, values_from = NPX) %>% 
-    select(SampleID, all_of(top_pc2[[ii]])) %>%  # sort by loadings
-    left_join(distinct(qns, RID, Tinnitus), by = c(SampleID = "RID")) %>% 
-    GGally::ggscatmat(., columns = 2:(ncol(.) - 1), color='Tinnitus') +
-    ggtitle(paste(ii, "- Correlation between top 6 proteins for PC2"))
-  print(p)
-}
-```
