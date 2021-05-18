@@ -1,0 +1,474 @@
+---
+title: "Tinnitus - Overview of the data after QC"
+author: "Mun-Gwan Hong"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    theme: cerulean
+    toc: true
+    toc_float: 
+      collapse : false
+    toc_depth: 3
+    # code_folding: hide
+    number_sections: true
+    # css: styles.css
+# bibliography: citations_in_report.bib
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding= encoding, output_dir= "../reports") })
+---
+
+```{r after_qc - setup, echo=FALSE, include=FALSE}
+## Pre-loaded package
+# Please note that some functions are called directly from the package using
+# double-colon '::' or triple-colon ':::' to make the source clearer.
+library(tidyverse)
+library(kableExtra)
+library(janitor)
+
+rm(list = ls())
+
+## Chunk hooks
+knitr::knit_hooks$set(
+  optipng = knitr::hook_optipng   # Optimize PNG plots
+)
+## Set default chunk options
+knitr::opts_chunk$set(
+	echo = FALSE,    # comment out for code_folding
+	# dev = c('pdf'), fig.path = '../results/figures/', # export figures to pdf files
+  results = "asis",   # for HTML
+  message = FALSE,    # no message from the code
+  warning = FALSE,    # no warning from the code
+	cache.path = "../cache/",   # cache the results from heavy analyses
+  fig.width  = 8,
+  fig.height = 6,
+	eval.after = "fig.cap",    # to add fig. caption within the chunk
+  optipng = '-o1', # '-o7 -zc9 -zm8 -zs0', # Optimize 'png' plots
+	purl = FALSE      # because most of the code are not to be extracted
+)
+options(knitr.kable.NA = '')  # NA is shown as ''
+```
+
+```{r, purl=TRUE}
+## File names
+fn <- list(
+  lib = "utils.R",
+	i = list(                               # input
+    olk02 = "../data/s1-olink_proteomic.v02.RData", 
+    c01 = "../data/s1-clinical.v01.RData"
+	)
+)
+
+# Brief check if all files exist
+stopifnot(all(file.exists(fn$lib, unlist(fn$i))))
+source(fn$lib)  # geom_split_violin, add_n
+
+# Load proteomic data ver.02
+load(fn$i$olk02)
+# Load clinical information ver.01
+load(fn$i$c01)
+
+# confirm the clinical information of all samples included in `olink` is
+# available in `qns`
+stopifnot(all(unique(olink$SampleID) %in% qns$RID))
+
+# Limit to the 1088 samples with proteomic data
+qns <- qns %>% 
+  filter(RID %in% unique(olink$SampleID))
+
+panels <- unique(olink$Panel)
+```
+
+## Summary on QC
+
+Initially, there were the data of 550 patients and 550 controls in the table, `All STOP questionnaire data 180118_v14_BloodAnalysis_v2`. 
+
+* Two controls were excluded that matched to duplicated two cases.
+
+### Clinical data
+
+These variables were excluded.
+
+* `r length(about_table$mostly_na)` variables having too many missing values (>80%)
+* `r nrow(about_table$one_value_only)` variables that had only one identical value for all samples
+* `r nrow(about_table$one_value_or_na)` variables that had only one identical value or missing for all samples
+
+The code of these variables were fixed.
+
+* `r length(about_table$wrong_code$noyes)` variables for Yes / No question
+* `r length(about_table$wrong_code$noyes_little_to_lot)` variables for 'No', 'Yes, a little', 'Yes, quite a lot', 'Yes, a lot' question
+
+### Proteomic data
+
+* `r n_distinct(during_qc$missing_tbl$SampleID)` samples were found to contain missing values. 
+The whole measures of one or two panels of `r n_distinct(unlist(during_qc$i_all_missing))` samples were missing.
+* The data was excluded of `r unique(during_qc$samples_too_many_llod$Panel)` of `r nrow(during_qc$samples_too_many_llod)` sample
+because majority of them were below LLOD
+(`r sprintf("%2.1f%%", during_qc$samples_too_many_llod$below_lod_prop * 100)`).
+* The >50% values of `r length(during_qc$i_assys_too_many_llod)` proteins were below LLOD, the data of which were removed.
+
+### Dimension after the QC
+
+```{r}
+olink %>% 
+  group_by(Panel) %>% 
+  summarise(
+    Samples = n_distinct(SampleID),
+    Proteins = n_distinct(OlinkID)
+  ) %>% 
+  kbl() %>% 
+  kable_styling(full_width = FALSE)
+```
+
+
+## Samples with proteomic data
+
+Here all investigations in this chapter **were limited to** those of the samples of which proteomic data were acquired (N = `nrow(qns)`). 
+
+### Matching between cases and controls
+
+```{r, purl=TRUE}
+# a list of sample IDs divided by panel
+sample_id_by_panel <- split(olink$SampleID, olink$Panel) %>% 
+  lapply(unique)
+```
+
+#### Tinnitus status and Sex
+
+There were two groups in terms of disease status of tinnitus, `r knitr::combine_words(unique(qns$Tinnitus), before = "'")`. 
+These is no 'Yes, occasionally' nor 'Don't know' case. Equal numbers of cases and controls were in each sex. 
+
+```{r}
+for(ii in panels) {
+  qns %>% 
+    filter(RID %in% sample_id_by_panel[[ii]]) %>% 
+    tabyl(Tinnitus, Sex) %>% 
+    adorn_totals('col') %>% 
+    kable(caption = ii) %>% 
+    kable_styling(full_width = F) %>% 
+    print()
+}
+```
+
+#### Age distribution by sex and tinnitus status
+
+Cases and controls were matched for age and sex. 
+
+```{r}
+qns %>% 
+  ggplot() +
+  aes(x = Sex, y= Age, fill= Tinnitus) +
+  geom_split_violin()
+
+# T-test for age difference between sex
+tmp <- pval_toLatex(t.test(Age ~ Sex, qns)$p.value, 3)
+```
+
+Just the average age of females was higher than males (T-test P = `r tmp`).
+
+```{r}
+qns %>% 
+  group_by(Sex) %>% 
+  summarise(
+    `Avg. Age` = mean(Age),
+    SEM = sd(Age) / sqrt(n())
+  ) %>% 
+  mutate_if(is.numeric, signif, 3) %>% 
+  kable() %>% 
+  kable_styling(full_width = F)
+```
+
+### Variables related to sample collection
+
+#### Sample labs
+
+```{r}
+#  ANOVA P-value
+tmp <- pval_toLatex(anova(lm(Age ~ `Sample Lab`, data = qns))[['Pr(>F)']][1], 3)
+```
+
+Samples were from `r n_distinct(qns[["Sample Lab"]])` sample labs. 
+Generally speaking, the number of samples are balanced with respect to disease status and sex. 
+The ages between cases and controls were well matched in each sample lab.
+Note that **average ages significantly varied between the labs** (ANOVA P = `r tmp`).
+
+```{r}
+qns %>% 
+  nest(data = -`Sample Lab`) %>% 
+  mutate( 
+    freq = map(data, . %>% tabyl(Tinnitus, Sex)),
+    `P-value` = map_dbl(freq, ~ signif(fisher.test(.x)$p.value, 3)),
+    `Avg. Sampling Age` = map_dbl(data, ~ signif(mean(.x$`Sampling Age`), 3))
+  ) %>% 
+  select(-data) %>% 
+  unnest(cols= c(freq)) %>% 
+  select(`Sample Lab`, Tinnitus, Male, Female, `P-value`, `Avg. Sampling Age`) %>% 
+  rename_with(~ paste0(.x, footnote_marker_symbol(1)), "P-value") %>% 
+  kbl(
+    caption = "Age and sex of the samples from each sample lab",
+    escape= F
+  ) %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F) %>% 
+  collapse_rows(c(1, 5)) %>% 
+  footnote(
+    symbol = "Fisher's exact test for association between sex and Tinnitus"
+  )
+```
+
+```{r}
+qns %>% 
+  ggplot() +
+  aes(x = `Sample Lab`, y= `Sampling Age`, fill= Tinnitus) +
+  geom_split_violin()
+```
+
+#### Collection date and time
+
+The date and time of sample collection were seemingly balanced between cases and controls.
+
+```{r sinfo-collection,fig.height=3}
+qns %>% 
+  ggplot() +
+  aes(x = `Collection Date`, fill= Tinnitus) +
+  geom_histogram(bins= 30) +
+  ggtitle('Sample collection date')
+
+qns %>% 
+  ggplot() +
+  aes(x = `Collection Time`, fill= Tinnitus) +
+  geom_histogram(bins= 30) +
+  ggtitle('Sample collection time')
+```
+
+
+## Proteomic data after QC
+
+### PCA
+
+[Principal component analysis (PCA)](https://builtin.com/data-science/step-step-explanation-principal-component-analysis)
+was applied to get a broad overview of protein profiles.
+It can also identify 1) any experimental factor that affected protein profiles extensively and 2) obvious outliers. 
+Each dot represents a sample in the following PCA score plots. 
+
+```{r}
+pca <- olink %>%
+  split(., .$Panel) %>%
+  c(list("All panels" = olink), .) %>%
+  lapply(
+    function(x) {
+      mat <- as.matrix_olinkdf(x) %>%        # to matrix
+        na.omit()
+      # skip no variance columns (when LLOD was replaced with LLOD)
+      is_nvc <- apply(mat, 2, function(y) var(y) == 0)
+      prcomp(mat[, !is_nvc], scale. = TRUE)    #  PCA
+    }
+  )
+
+#' PCA plot with x/y labels including % explained
+#'
+#' @param prcomp_out \code{\link{prcomp}} output
+#' @param mat which matrix in the \code{prcomp_out}, e.g. \code{"x"} or \code{"rotation"}
+#' @param add_df data frame with additional information to visualize
+#' @param id_col the column in \code{add_df} that has IDs to match
+#' @param x,y components to show
+#'
+#' @return ggplot with labels
+pca_plot <- function(prcomp_out, mat = "x", add_df = NULL, id_col = "ID", x = 1, y = 2) {
+    # proportion of variance explained
+    var_p <- prcomp_out$sdev^2 / sum(prcomp_out$sdev^2)
+    
+    ii <- paste0("PC", c(x, y))
+    
+    df <- prcomp_out[[mat]] %>% 
+      as_tibble(rownames = "ID")
+    # attach additional information data frame
+    if(!is.null(add_df)) {
+      stopifnot(id_col %in% names(add_df))
+      df <- df %>% 
+        left_join(add_df, by = c("ID" = id_col))
+    }
+    # prepare ggplot
+    ggplot(df) +
+      aes_string(x= ii[1], y= ii[2]) +
+      xlab(sprintf(paste(ii[1], "(%2.1f%%)"), var_p[x] * 100)) +
+      ylab(sprintf(paste(ii[2], "(%2.1f%%)"), var_p[y] * 100))
+  }
+```
+
+#### By experimental factors
+
+##### Olink analysis plate
+
+No obvious separation by the plates was observed.
+
+```{r}
+for(ii in names(pca)) {
+  p <- distinct(olink, SampleID, PlateID) %>% 
+    mutate(`Plate ID` = format(PlateID)) %>%  # by Plate ID
+    pca_plot(pca[[ii]], add_df = ., id_col = "SampleID") +
+    geom_point(aes(color = `Plate ID`)) +
+    ggtitle(ii)
+  print(p)
+}
+```
+
+##### Sample lab
+
+No fully separated cluster by sample lab was observed. Just some samples from Umeå (blue, N = `r sum(qns[["Sample Lab"]] == "Umeå")`) were somewhat different from the others. 
+
+```{r}
+for(ii in names(pca)) {
+  p <- pca_plot(pca[[ii]], add_df = qns, id_col = "RID") +
+    geom_point(aes(color = `Sample Lab`)) +
+    ggtitle(ii)
+  print(p)
+}
+```
+
+#### Loadings
+
+Loadings reflect how much each variable, here each protein, contributes to a principal component. 
+Please note that only relative difference is meaningful because the sum of squares is fixed to one. 
+
+##### Loading bi-plots
+
+They were often visualized in a scatter plot for PC1 and PC2 as below.
+The further a protein is from the origin, the more it contribute to those two principal components.
+
+```{r, fig.cap=fig_cap}
+fig_cap = paste(
+  "Colors reflect the distance from the origin of each protein.",
+  "The darker, the further."
+)
+
+for(ii in names(pca)) {
+  p <- distinct(olink, OlinkID, Assay) %>% 
+    pca_plot(pca[[ii]], "rotation", add_df = ., "OlinkID") +
+    geom_vline(xintercept = 0, linetype = "dashed", alpha = 0.5) +
+    geom_hline(yintercept = 0, linetype = "dashed", alpha = 0.5) +
+    geom_text(aes(label = Assay, color = abs(PC1^2 + PC2^2)), size = 3) +
+    scale_color_viridis_c(direction = -1) +
+    theme(legend.position = "none") +
+    ggtitle(ii)
+  print(p)
+}
+
+```
+
+##### Loading bar plots
+
+The loadings were sorted and presented in bar plots.
+
+```{r}
+# Prepare loadings tibble
+pca_loading <- lapply(
+  pca,
+  function(x) {
+    x <- as_tibble(x$rotation, rownames = "OlinkID") %>% 
+      right_join(distinct(olink, OlinkID, Assay, Panel), ., by = "OlinkID")
+    # Fix `Assay` to handle multiple assays for the same protein
+    if(anyDuplicated(x$Assay) != 0) {
+      du <- unique(x$Assay[duplicated(x$Assay)]) # duplicated `Assay`
+      x <- x %>% 
+        mutate(
+          Assay = if_else(Assay %in% du, 
+                          paste0(Assay, " (", OlinkID, ")"), 
+                          Assay)
+        )
+    }
+    x %>% 
+      rename(Protein = "Assay")
+  }
+)
+
+# layer for the signs of loadings
+layer1 <- list(
+  geom_bar(stat= 'identity'),
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)),
+  scale_fill_manual(
+    labels= c("Positive", "Negative"),
+    breaks= c("1", "-1"),
+    values= c("1" = "red3", "-1" = "blue3")
+  )
+)
+```
+
+###### 1st principal component
+
+Basically all loadings for the 1st PC were of the same sign, positive. 
+The values were decreasing gradually from highest to lowest without any greater drop. 
+The PC1 might have primarily reflected the variation driven by overall magnitude of **measured** protein values. 
+
+```{r, fig.height=4, fig.width=10}
+for(ii in names(pca)) {
+  p <- pca_loading[[ii]] %>% 
+    arrange(desc(abs(PC1))) %>% 
+    mutate(Protein = factor(Protein, levels= Protein)) %>%   # sorted by PC1
+    ggplot() +
+    aes(y = abs(PC1), x = Protein, fill= as.character(sign(PC1))) +
+    labs(title = ii, y = "Absolute value of PC1", fill = "PC1 sign") +
+    layer1
+  print(p)
+}
+  
+```
+
+###### 2nd principal component
+
+Unlike the 1st PC, the loadings of the 2nd PC had mixed signs. 
+The signs of them were mostly associated with panels for the top 70 proteins by magnitude shown below,
+which indicates the 2nd PC for all panels reflected differences between panels.
+
+```{r, fig.height=7, fig.width=10}
+pca_loading[["All panels"]] %>% 
+  slice_max(abs(PC2), n = 70) %>% 
+  mutate(Protein = factor(Protein, levels= Protein)) %>%    # sorted by PC2
+  ggplot() +
+  aes(y = PC2, x = Protein, fill = Panel) +
+  geom_bar(stat= 'identity') +
+  ggtitle("All panels (top 70 proteins)") +
+  scale_fill_manual(values = c("skyblue3", "pink3")) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+```
+
+Substantial difference of loadings for the 2nd PC in both magnitude and sign was observed across proteins even in individual panels.
+A few proteins contributed considerably more to the PC2 than others. 
+Due to that, a considerable drop of loadings was observed on the left side of the loading plots below. 
+```{r, fig.height=4, fig.width=10}
+for(ii in panels) {
+  p <- pca_loading[[ii]] %>% 
+    arrange(desc(abs(PC2))) %>% 
+    mutate(Protein = factor(Protein, levels= Protein)) %>%   # sorted by PC2
+    ggplot() +
+    aes(y = abs(PC2), x = Protein, fill= as.character(sign(PC2))) +
+    labs(title = ii, y = "Absolute value of PC2", fill = "PC2 sign") +
+    layer1
+  print(p)
+}
+```
+
+Those most contributing proteins were of the same sign and correlated each other.
+
+```{r,fig.cap=fig_cap}
+fig_cap = paste(
+  "The values in the upper triangle are pearson correlation coefficients,",
+  "while each dot in the lower triangle was NPX values of one sample."
+)
+# Top 6 proteins with highest loadings for PC2
+top_pc2 <- lapply(
+  pca_loading,
+  . %>%
+    slice_max(abs(PC2), n = 6) %>%
+    pull(Protein)
+)
+
+for(ii in panels) {
+  p <- olink %>%
+    filter(Assay %in% top_pc2[[ii]]) %>% 
+    pivot_wider(SampleID, names_from = Assay, values_from = NPX) %>% 
+    select(SampleID, all_of(top_pc2[[ii]])) %>%  # sort by loadings
+    left_join(distinct(qns, RID, Tinnitus), by = c(SampleID = "RID")) %>% 
+    GGally::ggscatmat(., columns = 2:(ncol(.) - 1), color='Tinnitus') +
+    ggtitle(paste(ii, "- Correlation between top 6 proteins for PC2"))
+  print(p)
+}
+```
