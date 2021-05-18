@@ -177,9 +177,9 @@ show_tables <- function(vars_in, data_tbl) {
         select(-Tinnitus) %>% 
         as.matrix() %>% 
         fisher.test(simulate.p.value = dim(sub_tbl)[2L] >= 5) %>% 
-        {signif(.$p.value, 3)} %>% 
-        sfsmisc:::toLatex.numeric() %>%     # * 10^x format
-        cat(" ( Fisher's test P = $", ., "$)\n", sep = "")
+        getElement("p.value") %>% 
+        pval_toLatex(3) %>% 
+        cat(" (Fisher's test P = ", ., ")\n", sep = "")
     } else {
       cat("\n")
     }
@@ -193,7 +193,7 @@ show_tables <- function(vars_in, data_tbl) {
 }
 ```
 
-### Hearing
+#### Hearing
 
 ```{r}
 # hearing related variables
@@ -207,13 +207,13 @@ i_hearing <- sapply(
 show_tables(i_hearing, qns)
 ```
 
-### Smoking
+#### Smoking
 
 ```{r}
 show_tables('Smoking', qns)
 ```
 
-### Stress
+#### Stress
 
 ```{r, fig.width=6, fig.height=5}
 stress <- list(
