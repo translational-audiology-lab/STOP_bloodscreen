@@ -67,8 +67,8 @@ load(fn$i$c01)
 
 * *All information about samples was initially obtained from the file, `All STOP questionnaire data 180118_v14_BloodAnalysis_v2.xlsx`*.
 * The results presented in this section are based on the data after QC of the given data.
-**Please note that the samples _without_ proteomic data were also included in the following investigation**
-* The QC is described thoroughly in the section "QC of clinical data table". 
+**Please note that the samples _without_ proteomic data were also included during the investigation in this chapter.**
+* The QC is described thoroughly in the chapter "QC of clinical data table". 
 
 ## Matching between cases and controls
 
@@ -100,15 +100,10 @@ qns %>%
 
 ### Sample labs
 
-```{r}
-#  ANOVA P-value
-tmp <- anova(lm(Age ~ `Sample Lab`, data = qns))[['Pr(>F)']][1] %>% signif(3)
-```
-
 Samples were from `r n_distinct(qns[["Sample Lab"]])` sample labs. 
 Generally speaking, the number of samples are balanced with respect to disease status and sex. 
 The ages between cases and controls were well matched in each sample lab.
-Note that **average ages significantly varied between the labs** (ANOVA P=$`r tmp`$).
+Note that **average ages significantly varied between the labs** (ANOVA P=$`r pval_toLatex(anova(lm(Age ~ `Sample Lab`, data = qns))[['Pr(>F)']][1])`$).
 
 ```{r}
 qns %>% 

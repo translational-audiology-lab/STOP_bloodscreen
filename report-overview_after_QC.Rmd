@@ -80,10 +80,6 @@ panels <- unique(olink$Panel)
 
 ## Summary on QC
 
-Initially, there were the data of 550 patients and 550 controls in the table, `All STOP questionnaire data 180118_v14_BloodAnalysis_v2`. 
-
-* Two controls were excluded that matched to duplicated two cases included in those 1100 participants.
-
 ### Clinical data
 
 These variables were excluded.
@@ -226,7 +222,7 @@ qns %>%
 
 The date and time of sample collection were seemingly balanced between cases and controls.
 
-```{r sinfo-collection,fig.height=3}
+```{r, fig.height=3}
 qns %>% 
   ggplot() +
   aes(x = `Collection Date`, fill= Tinnitus) +
@@ -475,9 +471,3 @@ for(ii in names(outliers)) {
 }
 ```
 
-## Methods
-
-_short texts about the methods_
-
-Bioinformatic data handling and statistic analyses were done on `r R.version.string`, 
-together with tidyverse (v. `r packageVersion("tidyverse")`) package.
