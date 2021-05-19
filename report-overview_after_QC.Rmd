@@ -9,9 +9,9 @@ output:
     toc_float: 
       collapse : false
     toc_depth: 3
-    # code_folding: hide
+    code_folding: hide
     number_sections: true
-    # css: styles.css
+    css: styles.css
 # bibliography: citations_in_report.bib
 knit: (function(inputFile, encoding) {
   rmarkdown::render(inputFile, encoding= encoding, output_dir= "../reports") })
@@ -33,7 +33,7 @@ knitr::knit_hooks$set(
 )
 ## Set default chunk options
 knitr::opts_chunk$set(
-	echo = FALSE,    # comment out for code_folding
+	# echo = FALSE,    # comment out for code_folding
 	# dev = c('pdf'), fig.path = '../results/figures/', # export figures to pdf files
   results = "asis",   # for HTML
   message = FALSE,    # no message from the code
@@ -82,7 +82,7 @@ panels <- unique(olink$Panel)
 
 Initially, there were the data of 550 patients and 550 controls in the table, `All STOP questionnaire data 180118_v14_BloodAnalysis_v2`. 
 
-* Two controls were excluded that matched to duplicated two cases.
+* Two controls were excluded that matched to duplicated two cases included in those 1100 participants.
 
 ### Clinical data
 
@@ -92,7 +92,7 @@ These variables were excluded.
 * `r nrow(about_table$one_value_only)` variables that had only one identical value for all samples
 * `r nrow(about_table$one_value_or_na)` variables that had only one identical value or missing for all samples
 
-The code of these variables were fixed.
+The codes of these variables were fixed.
 
 * `r length(about_table$wrong_code$noyes)` variables for Yes / No question
 * `r length(about_table$wrong_code$noyes_little_to_lot)` variables for 'No', 'Yes, a little', 'Yes, quite a lot', 'Yes, a lot' question
@@ -100,13 +100,15 @@ The code of these variables were fixed.
 ### Proteomic data
 
 * `r n_distinct(during_qc$missing_tbl$SampleID)` samples were found to contain missing values. 
-The whole measures of one or two panels of `r n_distinct(unlist(during_qc$i_all_missing))` samples were missing.
-* The data was excluded of `r unique(during_qc$samples_too_many_llod$Panel)` of `r nrow(during_qc$samples_too_many_llod)` sample
-because majority of them were below LLOD
+Among them, the data of `r n_distinct(unlist(during_qc$i_all_missing))` samples was note obtained for whole measures of one panel or two.
+* The data of `r unique(during_qc$samples_too_many_llod$Panel)` of `r nrow(during_qc$samples_too_many_llod)` sample was excluded
+, because majority of them were below LLOD
 (`r sprintf("%2.1f%%", during_qc$samples_too_many_llod$below_lod_prop * 100)`).
 * The >50% values of `r length(during_qc$i_assys_too_many_llod)` proteins were below LLOD, the data of which were removed.
 
 ### Dimension after the QC
+
+The numbers of samples and proteins after the QC were as below.
 
 ```{r}
 olink %>% 
@@ -119,10 +121,11 @@ olink %>%
   kable_styling(full_width = FALSE)
 ```
 
+-----------------------------
 
 ## Samples with proteomic data
 
-Here all investigations in this chapter **were limited to** those of the samples of which proteomic data were acquired (N = `nrow(qns)`). 
+Note, all investigations in this chapter **were limited to** those of the samples of which proteomic data were acquired (N = `r nrow(qns)`). 
 
 ### Matching between cases and controls
 
@@ -135,7 +138,8 @@ sample_id_by_panel <- split(olink$SampleID, olink$Panel) %>%
 #### Tinnitus status and Sex
 
 There were two groups in terms of disease status of tinnitus, `r knitr::combine_words(unique(qns$Tinnitus), before = "'")`. 
-These is no 'Yes, occasionally' nor 'Don't know' case. Equal numbers of cases and controls were in each sex. 
+These is no 'Yes, occasionally' nor 'Don't know' case. 
+Almost equal numbers of cases and controls were included in each sex. 
 
 ```{r}
 for(ii in panels) {
@@ -158,12 +162,9 @@ qns %>%
   ggplot() +
   aes(x = Sex, y= Age, fill= Tinnitus) +
   geom_split_violin()
-
-# T-test for age difference between sex
-tmp <- pval_toLatex(t.test(Age ~ Sex, qns)$p.value, 3)
 ```
 
-Just the average age of females was higher than males (T-test P = `r tmp`).
+Just the average age of females was higher than males (T-test P = `r pval_toLatex(t.test(Age ~ Sex, qns)$p.value, 3)`).
 
 ```{r}
 qns %>% 
@@ -239,8 +240,23 @@ qns %>%
   ggtitle('Sample collection time')
 ```
 
+--------------------------------
 
 ## Proteomic data after QC
+
+```{r}
+# Olink NPX value in matrix by panel
+olink_mat_by_panel <- olink %>%
+  split(., .$Panel) %>%
+  c(list("All panels" = olink), .) %>%
+  lapply(as.matrix_olinkdf)        # to matrix
+# PCA
+pca <- olink_mat_by_panel %>% 
+  lapply(. %>% 
+           na.omit() %>% 
+           prcomp(scale. = TRUE)    #  PCA
+  )
+```
 
 ### PCA
 
@@ -250,17 +266,11 @@ It can also identify 1) any experimental factor that affected protein profiles e
 Each dot represents a sample in the following PCA score plots. 
 
 ```{r}
-pca <- olink %>%
-  split(., .$Panel) %>%
-  c(list("All panels" = olink), .) %>%
-  lapply(
-    function(x) {
-      mat <- as.matrix_olinkdf(x) %>%        # to matrix
-        na.omit()
-      # skip no variance columns (when LLOD was replaced with LLOD)
-      is_nvc <- apply(mat, 2, function(y) var(y) == 0)
-      prcomp(mat[, !is_nvc], scale. = TRUE)    #  PCA
-    }
+# PCA
+pca <- olink_mat_by_panel %>% 
+  lapply(. %>% 
+           na.omit() %>% 
+           prcomp(scale. = TRUE)    #  PCA
   )
 
 #' PCA plot with x/y labels including % explained
@@ -300,7 +310,14 @@ pca_plot <- function(prcomp_out, mat = "x", add_df = NULL, id_col = "ID", x = 1,
 
 No obvious separation by the plates was observed.
 
-```{r}
+```{r, fig.cap=fig_cap}
+fig_cap = paste(
+  "PCR score plot.",
+  "The scores of the first and second components are presented in a scatter plot,",
+  "in which individual samples are colored by plate IDs.",
+  "The numbers in axis labels show the proportion of variances explained by the",
+  "principal components."
+)
 for(ii in names(pca)) {
   p <- distinct(olink, SampleID, PlateID) %>% 
     mutate(`Plate ID` = format(PlateID)) %>%  # by Plate ID
@@ -315,7 +332,14 @@ for(ii in names(pca)) {
 
 No fully separated cluster by sample lab was observed. Just some samples from Umeå (blue, N = `r sum(qns[["Sample Lab"]] == "Umeå")`) were somewhat different from the others. 
 
-```{r}
+```{r, fig.cap=fig_cap}
+fig_cap = paste(
+  "PCR score plot.",
+  "The scores of the first and second components are presented in a scatter plot,",
+  "in which individual samples are colored by sample lab.",
+  "The numbers in axis labels show the proportion of variances explained by the",
+  "principal components."
+)
 for(ii in names(pca)) {
   p <- pca_plot(pca[[ii]], add_df = qns, id_col = "RID") +
     geom_point(aes(color = `Sample Lab`)) +
@@ -409,6 +433,51 @@ for(ii in names(pca)) {
     layer1
   print(p)
 }
-  
 ```
 
+###  Outliers
+
+```{r}
+# Mahalanobis distances
+m_dist <- lapply(
+  pca,
+  function(xx) {
+    rowSums(scale(xx$x)^2) %>% 
+      as_tibble(rownames = "SampleID") %>% 
+      mutate(
+        pval = pchisq(value, df = ncol(xx$x), lower.tail = FALSE),
+      )
+  }
+)
+outliers <- lapply(
+  m_dist, 
+  . %>% 
+    filter(pval < 1e-50) %>% 
+    pull(SampleID)
+) %>% 
+  subset(., sapply(., function(x) length(x) > 0))
+```
+
+There was `r n_distinct(unlist(outliers))` obvious outlier.
+It was labeled with its `RID` in the PCA plot below.
+
+```{r}
+for(ii in names(outliers)) {
+  p <- pca_plot(pca[[ii]], "x", qns, "RID") +
+    geom_point(aes(color = Tinnitus)) +
+    geom_label(
+      aes(label = if_else(ID %in% outliers[[ii]], ID, NA_character_)),
+      nudge_x = 5,
+      na.rm = TRUE
+    ) +
+    ggtitle(ii)
+  print(p)
+}
+```
+
+## Methods
+
+_short texts about the methods_
+
+Bioinformatic data handling and statistic analyses were done on `r R.version.string`, 
+together with tidyverse (v. `r packageVersion("tidyverse")`) package.
