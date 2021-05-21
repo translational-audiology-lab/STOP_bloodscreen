@@ -136,6 +136,7 @@ proper order.
 * `gen-s1-clinc.v01.R` : Read clinical info data
 * `gen-s1-olink_proteomic.v01.R` : Read Olink proteomic data
 * `gen-s1-olink_proteomic.v02.R` : QC and preprocess - details in `report-QC-Olink_proteomic_data.Rmd`
+* `gen-s1-clinc.v02.R` : Limit samples to those with proteomic data
 
 #### Other data generating scripts
 
@@ -160,6 +161,7 @@ support.
 * `report-QC-clinical_info.Rmd` : Clinical info table QC
 * `report-QC-Olink_proteomic_data.Rmd` : About QC and preprocessing of Olink
 proteomic data
+* `report-overview_after_QC.Rmd` : Overview of the data after QC
 
 
 #### Extra analyses

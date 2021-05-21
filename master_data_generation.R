@@ -18,3 +18,5 @@ source("gen-s1-olink_proteomic.v01.R")
 #   - details in `report-QC-Olink_proteomic_data.Rmd`
 source("gen-s1-olink_proteomic.v02.R")
 
+# Limit the samples to those with proteomic data
+source("gen-s1-clinical.v02.R")
