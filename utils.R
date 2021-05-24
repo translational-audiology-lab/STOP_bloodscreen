@@ -5,9 +5,8 @@
 # Editor : Mun-Gwan Hong
 # ------------------------------------------------------------------------------
 
-## Pre-loaded packages
+## Pre-loaded package
 library(tidyverse)  # %>%, ...
-library(sfsmisc) # toLatex.numeric : * 10^x format
 
 # -----------------------------------------------------------------------------#
 #' Find irregular columns such as too many NAs, just one value
@@ -309,7 +308,7 @@ as.matrix_olinkdf <- function(olinkdf, unique_id = SampleID){
 #' pval_toLatex(1.234e-7)
 pval_toLatex <- function(pval, digits = 3) {
   signif(pval, 3) %>% 
-    toLatex() %>%  # sfsmisc:::toLatex.numeric : * 10^x format
+    sfsmisc:::toLatex.numeric() %>%  # * 10^x format : not exported function
     paste0("$", ., "$")
 }
 
