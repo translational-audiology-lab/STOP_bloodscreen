@@ -67,15 +67,20 @@ lm_out_t_stat <- function(f, data, pos = 1) {
     `[`(pos + 1, "t value")      # skip (intercept)
 }
 
-#' Adjust P-value by max-T resmapling-based step-down procedure
+
+#' Adjust P-value by max-T resampling-based step-down procedure
+#' 
+#' Because `purrr::nest`is much slower than `pivot_wider`, 'pivot_wider" was 
+#' chosen.
 #'
-#' @param f formula that will be pass to \code{\link{lm_out_t_stat}} and
-#'   \code{\link{lm_out_1line}}
+#' @param rhs Right hand side of the formula that will be pass to
+#'   \code{\link{lm_out_t_stat}} and \code{\link{lm_out_1line}}. Left hand side
+#'   is fixed to "NPX".
 #' @param olinkdf a data frame that contain Olink data in long format
 #' @param c_data clinical data 
 #' @param n_iter number of iterations
 #' @param pos position of the variable of interest in the formula given in
-#'   \code{f}. \code{pos = 1} is for the first independent variable.
+#'   \code{rhs}. \code{pos = 1} is for the first independent variable.
 #'
 #' @return a tibble in which each row has output including the adjusted P-value
 #' @import foreach
@@ -88,25 +93,30 @@ lm_out_t_stat <- function(f, data, pos = 1) {
 #' Westfall and Young's max-T method (1993)
 #' \url{https://fdhidalgo.github.io/multitestr/articles/multitestr.html#stepdown}
 
-lm_padj_by_max_t <- function(f, olinkdf, c_data, n_iter = 100, pos = 1) {
-  # make sure no change after 'left_join' with p_data
+lm_prot_padj_by_max_t <- function(rhs, olinkdf, c_data, n_iter = 100, pos = 1) {
+  # make sure unique sample IDs in the clinical data table
   stopifnot(anyDuplicated(c_data$SampleID) == 0)
   
-  # minimize the data size
-  olinkdf <- olinkdf %>% 
-    select(SampleID, OlinkID, Assay, NPX)
-  c_data <- c_data %>% 
-    select(SampleID, all_of(all.vars(f)[all.vars(f) != "NPX"]))
-  
+  # proteins
+  prots <- unique(olinkdf$OlinkID)
+  # wide form
+  olinkdf_wide <- olinkdf %>% 
+    pivot_wider(SampleID, names_from = OlinkID, values_from = NPX)
+
   # observed T-statistics
-  obs <- inner_join(olinkdf, c_data, by = "SampleID") %>%
-    nest(data = -OlinkID) %>% 
-    add_column(map_dfr(.$data, ~ lm_out_1line(f, .x))) %>%
+  oc <- inner_join(olinkdf_wide, c_data, by = "SampleID")
+  obs <- map_dfr(
+    prots,
+    function(ii) {
+      f <- formula(paste(ii, "~", rhs))
+      lm_out_1line(f, data = oc, pos = pos) %>% 
+        mutate(OlinkID = ii, .before = Model)
+    }
+  ) %>% 
     mutate(
       t_obs = abs(`t value`),
       bonf_P = p.adjust(Pval, method= 'bonferroni')
-    ) %>% 
-    select(-data)
+    )
 
   # backend for parallel computing
   doParallel::registerDoParallel(cores = parallel::detectCores() - 1)
@@ -117,21 +127,25 @@ lm_padj_by_max_t <- function(f, olinkdf, c_data, n_iter = 100, pos = 1) {
     rnd = iterators::isample(c_data$SampleID, count = n_iter),
     .inorder = FALSE,
     .combine = 'cbind',
-    .packages = c("dplyr", "tidyr", "purrr")
+    .packages = c("dplyr", "purrr")
   ) %dopar% {
-    # T-statistics from linear regression
-    t_b <- c_data %>% 
+    # Olink + randomized clinical data
+    oc <- c_data %>% 
       mutate(SampleID = rnd) %>% 
-      left_join(olinkdf, ., by = "SampleID") %>% 
-      nest(data = -c(OlinkID, Assay)) %>% 
-      mutate(abs_t_rnd = abs(map_dbl(data, ~ lm_out_t_stat(f, .x))))
-  
-    stopifnot(identical(t_b$OlinkID, obs$OlinkID))
-    t_b$abs_t_rnd
+      inner_join(olinkdf_wide, ., by = "SampleID")
+    
+    # T-statistics from linear regression
+    map_dbl(
+      prots,
+      function(ii) {
+        f <- formula(paste(ii, "~", rhs))
+        abs(lm_out_t_stat(f, oc, pos = pos))
+      }
+    )
   }
 
   # max T during resampling
-  Q_b = T_rnd[order(obs$t_obs), ] %>% 
+  Q_b <- T_rnd[order(obs$t_obs), ] %>% 
     apply(2, cummax) %>% 
     `[`(rank(obs$t_obs), )
   
