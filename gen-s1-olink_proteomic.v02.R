@@ -101,10 +101,9 @@ below_lod_prop <- olink %>%
 i_assys_too_many_llod <- below_lod_prop$by_assay %>% 
   filter(below_lod_prop > 0.5) %>% 
   pull(OlinkID)
-
 # the sample having too many LLOD
 samples_too_many_llod <- below_lod_prop$by_sample %>% 
-  filter(below_lod_prop > 0.5)
+  filter(below_lod_prop > 0.4)
 
 # * QC below LLOD * #
 olink <- olink %>%

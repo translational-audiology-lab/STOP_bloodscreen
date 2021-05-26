@@ -249,16 +249,19 @@ below_lod_prop <- olink %>%
       by_sample = group_by(., SampleID, Panel)
     )
   } %>% 
-  lapply(. %>% summarise(below_lod_prop = sum(NPX <= LOD) / n(), .groups = "drop"))
+  map(~ summarise(.x, below_lod_prop = sum(NPX <= LOD) / n(), .groups = "drop"))
 
 # Assays having too many LLOD
 i_assys_too_many_llod <- below_lod_prop$by_assay %>% 
   filter(below_lod_prop > 0.5) %>% 
   pull(OlinkID)
 
-##  the sample having too many LLOD
+# combined ID to distinguish samples of different panels
+below_lod_prop$by_sample <- below_lod_prop$by_sample %>% 
+  unite("oid_panel", SampleID, Panel, remove = FALSE)
+# the sample having too many LLOD
 samples_too_many_llod <- below_lod_prop$by_sample %>% 
-  filter(below_lod_prop > 0.5)
+  filter(below_lod_prop > 0.4)
 ```
 
 Some measures were below lower-limit of detection (LLOD) of the assays. 
@@ -288,8 +291,21 @@ p +
   facet_grid(Panel ~ .)
 ```
 
-Majority of **`r nrow(samples_too_many_llod)` sample**'s protein values in the `r unique(samples_too_many_llod$Panel)` were below LLOD.
+Majority (>40%) of **`r nrow(samples_too_many_llod)` sample**'s protein values in the `r unique(samples_too_many_llod$Panel)` were below LLOD.
 <span style="background-color:greenyellow">The data of the samples without protein data or with too many LLOD were **removed**.</span> 
+
+```{r, fig.height=8}
+ggplot(below_lod_prop$by_sample) +
+  aes(x= below_lod_prop) +
+  aes(fill = if_else(oid_panel %in% samples_too_many_llod$oid_panel, 
+                     "Excluded", "Included")) +
+  geom_histogram(bins = 30) +
+  xlab("The proportion of the values below LLOD") +
+  ylab("Nr. of Samples") +
+  guides(fill = guide_legend(title = "Data")) +
+  ggtitle("Historgram of the prop. of <LLOD") +
+  facet_grid(Panel ~ .)
+```
 
 ```{r, purl=TRUE}
 # * QC below LLOD * #
@@ -347,10 +363,12 @@ for(ii in panels) {
 ##### Sample having too many values below LLOD
 
 ```{r}
-qns %>% 
-  filter(RID %in% samples_too_many_llod$SampleID) %>% 
-  select(RID, ParticipantID, Tinnitus, `Sampling Age`, `Sample Lab`, ID) %>% 
-  kable(caption = "") %>% 
+samples_too_many_llod %>% 
+  right_join(qns, ., by = c("RID" = "SampleID")) %>% 
+  mutate(below_lod_prop = sprintf("%3.f%%", below_lod_prop * 100)) %>% 
+  select(RID, Tinnitus, `Sampling Age`, `Sample Lab`, 
+         Panel, "LLOD prop." = below_lod_prop) %>% 
+  kbl(align = "llrllr") %>% 
   kable_styling(full_width = F) 
 ```
 
@@ -381,12 +399,6 @@ for(ii in panels) {
     print()
 }
 ```
-
-
-
-
-
-
 
 
 
