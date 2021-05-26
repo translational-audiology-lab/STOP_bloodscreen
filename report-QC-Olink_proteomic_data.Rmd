@@ -291,7 +291,7 @@ p +
   facet_grid(Panel ~ .)
 ```
 
-Majority (>40%) of **`r nrow(samples_too_many_llod)` sample**'s protein values in the `r unique(samples_too_many_llod$Panel)` were below LLOD.
+Majority (>40%) of **`r nrow(samples_too_many_llod)` sample**'s protein values in the `r unique(samples_too_many_llod$Panel)` panel were below LLOD.
 <span style="background-color:greenyellow">The data of the samples without protein data or with too many LLOD were **removed**.</span> 
 
 ```{r, fig.height=8}
@@ -327,7 +327,7 @@ during_qc$samples_too_many_llod <- samples_too_many_llod
 * The number of samples analyzed by Olink assays and for which clinical information is available was `r n_samples_with_info`.
 * `r english::Words(n_distinct(during_qc$missing_tbl$SampleID))` samples were found to contain missing values. 
 The whole measures of one or two panels of `r n_distinct(unlist(during_qc$i_all_missing))` samples were missing.
-* Majority of **`r nrow(during_qc$samples_too_many_llod)` sample**'s protein values in the `r unique(during_qc$samples_too_many_llod$Panel)` were below LLOD. The data was **removed**.
+* Majority of **`r nrow(during_qc$samples_too_many_llod)` sample**'s protein values in the `r unique(during_qc$samples_too_many_llod$Panel)` panel were below LLOD. The data was **removed**.
 * The >50% values of **`r length(during_qc$i_assys_too_many_llod)` proteins** were below LLOD, the data of which were **removed**.
 
 #### Dimension after the QC
@@ -380,6 +380,10 @@ samples_too_many_llod %>%
 # to show table grouped by panel
 tmp <- olink0 %>% 
   distinct(OlinkID, Panel, Assay, UniProt, LOD) %>% 
+  mutate(
+    Panel = str_remove(Panel, "^Olink ") %>% 
+      str_to_title()
+  ) %>% 
   right_join(below_lod_prop$by_assay, by = "OlinkID") %>% 
   filter(OlinkID %in% i_assys_too_many_llod) %>% 
   mutate(below_lod_prop = sprintf("%3.f%%", below_lod_prop * 100)) %>% 
