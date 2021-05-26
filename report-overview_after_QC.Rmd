@@ -96,9 +96,9 @@ The codes of these variables were fixed.
 ### Proteomic data
 
 * `r n_distinct(during_qc$missing_tbl$SampleID)` samples were found to contain missing values. 
-Among them, the data of `r n_distinct(unlist(during_qc$i_all_missing))` samples was note obtained for whole measures of one panel or two.
-* The data of `r unique(during_qc$samples_too_many_llod$Panel)` of `r nrow(during_qc$samples_too_many_llod)` sample was excluded
-, because majority of them were below LLOD
+Among them, the data of `r n_distinct(unlist(during_qc$i_all_missing))` samples was missing for whole proteins of one panel or two.
+* The data of `r unique(during_qc$samples_too_many_llod$Panel)` panel of `r nrow(during_qc$samples_too_many_llod)` sample was excluded, 
+because majority (>40%) of them were below LLOD
 (`r sprintf("%2.1f%%", during_qc$samples_too_many_llod$below_lod_prop * 100)`).
 * The >50% values of `r length(during_qc$i_assys_too_many_llod)` proteins were below LLOD, the data of which were removed.
 
@@ -258,7 +258,7 @@ pca <- olink_mat_by_panel %>%
 
 [Principal component analysis (PCA)](https://builtin.com/data-science/step-step-explanation-principal-component-analysis)
 was applied to get a broad overview of protein profiles.
-It can also identify 1) any experimental factor that affected protein profiles extensively and 2) obvious outliers. 
+It can also identify any experimental factor that affected protein profiles extensively. 
 Each dot represents a sample in the following PCA score plots. 
 
 ```{r}
@@ -427,46 +427,6 @@ for(ii in names(pca)) {
     aes(y = abs(PC1), x = Protein, fill= as.character(sign(PC1))) +
     labs(title = ii, y = "Absolute value of PC1", fill = "PC1 sign") +
     layer1
-  print(p)
-}
-```
-
-###  Outliers
-
-```{r}
-# Mahalanobis distances
-m_dist <- lapply(
-  pca,
-  function(xx) {
-    rowSums(scale(xx$x)^2) %>% 
-      as_tibble(rownames = "SampleID") %>% 
-      mutate(
-        pval = pchisq(value, df = ncol(xx$x), lower.tail = FALSE),
-      )
-  }
-)
-outliers <- lapply(
-  m_dist, 
-  . %>% 
-    filter(pval < 1e-50) %>% 
-    pull(SampleID)
-) %>% 
-  subset(., sapply(., function(x) length(x) > 0))
-```
-
-There was `r n_distinct(unlist(outliers))` obvious outlier.
-It was labeled with its `RID` in the PCA plot below.
-
-```{r}
-for(ii in names(outliers)) {
-  p <- pca_plot(pca[[ii]], "x", qns, "RID") +
-    geom_point(aes(color = Tinnitus)) +
-    geom_label(
-      aes(label = if_else(ID %in% outliers[[ii]], ID, NA_character_)),
-      nudge_x = 5,
-      na.rm = TRUE
-    ) +
-    ggtitle(ii)
   print(p)
 }
 ```
