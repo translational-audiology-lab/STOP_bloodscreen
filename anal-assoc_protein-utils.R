@@ -180,7 +180,7 @@ show_res_p <- function(x, ..., n = 3, caption = paste("Top", n, "proteins"), aft
 
   res <- x %>%  
     slice_min(Pval, n = n) %>% 
-    select(..., "p value" = Pval, all_of(after_p))
+    select(..., "_p_ value" = Pval, all_of(after_p))
   
   # align numeric to right
   align <- sapply(res, is.numeric) %>% 
@@ -190,8 +190,9 @@ show_res_p <- function(x, ..., n = 3, caption = paste("Top", n, "proteins"), aft
   res %>% 
     # # * 10^x format, but doesn't work with scroll
     # mutate(across(where(is.numeric), pval_toLatex)) %>% 
-    mutate(across(where(is.numeric), ~ format(.x, 3, digits = 3))) %>% 
-    kable(caption = caption, align = align) %>% 
+    mutate(across(where(is.numeric), 
+                  ~ str_remove(format(.x, 3, digits = 3), "NA"))) %>% 
+    kbl(caption = caption, align = align) %>% 
     kable_styling(full_width = F)
 }
 
