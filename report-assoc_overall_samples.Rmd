@@ -17,14 +17,12 @@ knit: (function(inputFile, encoding) {
   rmarkdown::render(inputFile, encoding= encoding, output_dir= "../reports") })
 ---
 
-```{r setup, echo=FALSE, include=FALSE}
+```{r Assoc setup, echo=FALSE, include=FALSE}
 ## Pre-loaded packages
 # Please note that some functions are called directly from the package using
 # double-colon '::' or triple-colon ':::' to make the source clearer.
 library(tidyverse)
 library(kableExtra)
-library(foreach)  # %dopar%
-# library(janitor)
 
 rm(list = ls())
 
@@ -49,7 +47,7 @@ knitr::opts_chunk$set(
 options(knitr.kable.NA = '')  # NA is shown as ''
 ```
 
-```{r Load data, purl=TRUE}
+```{r Assoc Load data, purl=TRUE}
 ## File names
 fn <- list(
   lib = list(
@@ -363,16 +361,14 @@ show_examples(hits$intx$OlinkID[1:3], `Sample Lab`) +
 
 ```{r}
 # increasing/decreasing proteins as the collection date
-hits <- filter(assoc_res$covariates[["`Collection Date`"]], adj.P < 0.05) %>%
-  split(., recode(sign(.$Estimate), "1" = "inc", "-1" = "dec"))
-stopifnot(is.null(hits$inc), nrow(hits$dec) == 1)
+hits <- filter(assoc_res$covariates[["`Collection Date`"]], adj.P < 0.05)
 ```
 
-`r Words(nrow(hits$dec))` protein was found correlated with sample collection date or the age of samples by linear regression.
+`r Words(nrow(hits))` protein was found correlated with sample collection date or the age of samples by linear regression.
 
 ```{r, fig.width=4, fig.height=3}
-show_hit_table(hits$dec)
-show_examples(hits$dec$OlinkID, `Collection Date`) +
+show_hit_table(hits)
+show_examples(hits$OlinkID, `Collection Date`) +
   geom_point()
 ```
 
@@ -515,12 +511,6 @@ out_df <- assoc_res$tinnitus$age_sex_lab_smoke <- lm_prot_padj_by_max_t(
 was significantly associated with tinnitus (adjusted P by permutation < 0.05). 
 
 ```{r}
-stopifnot(
-  all(!is.na(qns$Age)),
-  all(!is.na(qns$Sex)),
-  all(!is.na(qns$Tinnitus)),
-  all(!is.na(qns$`Sample Lab`))
-)
 left_join(out_df, proteins, by = "OlinkID") %>% 
   show_res_p(Protein, "$\\Delta$(Yes - No)" = Estimate, "Adj.P by perm." = perm_P, n = 5)
 ```
@@ -965,33 +955,24 @@ including age, sex, smoking, and sample lab.
 - Due to missing information, `r nrow(drop_na(qns, Smoking, all_of(tinnitus_handi_inv)))` samples were analyzed here.
 
 ```{r Assoc.THI_scores, purl=TRUE, cache=TRUE}
-# backend for parallel computing
-doParallel::registerDoParallel(cores = parallel::detectCores() - 1)
-  
 # Association tests
-assoc_res$THI_scores <- foreach(
-  ii = iterators::iter(tinnitus_handi_inv),
-  .inorder = FALSE,
-  .packages = c("dplyr", "purrr", "tidyr", "tibble")
-) %dopar% {
-  f <- formula(paste("NPX ~", ii, "+ Age + Sex + Smoking + `Sample Lab`"))
-  olink_qns %>%
-    select(OlinkID, Assay, all_of(all.vars(f))) %>% # due to too wide table
-    nest(data = -c(OlinkID, Assay)) %>%
-    add_column(map_dfr(.$data, ~ lm_out_1line(f, .x))) %>%
-    select(-data) %>% 
-    mutate(qval = qvalue::qvalue(Pval)$qvalues)
-} %>% 
+assoc_res$THI_scores <- lapply(
+  tinnitus_handi_inv,
+  function(ii) {
+    rhs <- paste(ii, "+ Age + Sex + Smoking + `Sample Lab`")
+    lm_prot_padj_by_max_t(rhs, olink, qns, n_iter = N_PERMUTATION)
+  }
+) %>% 
   `names<-`(tinnitus_handi_inv)
 ```
 
 ##### Results
 
 ```{r}
-is_hit <- map(assoc_res$THI_scores, ~ {.x$qval < 0.05})
+is_hit <- map(assoc_res$THI_scores, ~ {.x$perm_P < 0.05})
 ```
 
-* `r Words(sum(unlist(is_hit)))` protein was significantly associated with one of those THI scores (_q_ value < 0.05).
+* `r Words(sum(unlist(is_hit)))` proteins were significantly associated with one of those THI scores (adjusted P by permutation < 0.05).
 
 ```{r, fig.height=9}
 for(ii in tinnitus_handi_inv) {
@@ -1004,7 +985,7 @@ for(ii in tinnitus_handi_inv) {
 
     hits %>% 
       show_res_p(Protein = Assay, "Trend Yes-Sometimes-No" = Estimate, 
-                 "q value" = qval, caption = qn, n = Inf) %>% 
+                 "Adj.P by perm." = perm_P, caption = qn, n = Inf) %>% 
       print()
 
     p <- olink_qns %>% 
@@ -1099,11 +1080,6 @@ out_df %>%
   show_res_p(Protein = Assay, "Trend" = Estimate, "q value" = qval)
 ```
 
-
-```{r, purl=TRUE}
-save(assoc_res, file = fn$o$res)
-```
-
 ------------------------
 
 ### Other selected variables
@@ -1157,7 +1133,7 @@ for(ii in 1:nrow(others)) {
     "#####", others$desc[ii], ":", paste0("`", others$lab[ii], "`"), "\n",
     "* Question :", codes$Label[codes$Variable == others$lab[ii]], "\n",
     "*", Words(sum(assoc_res$others[[ii]]$qval < 0.05)), 
-    "protein was significantly associated (_q_ value).\n"
+    "protein was significantly associated (_q_ value < 0.05).\n"
   )
   p <- if(others$test[ii] == "lm") {
     assoc_res$others[[ii]] %>% 
@@ -1171,9 +1147,9 @@ for(ii in 1:nrow(others)) {
 }
 ```
 
-
-
-
+```{r, purl=TRUE, include=FALSE}
+save(assoc_res, file = fn$o$res)
+```
 
 ----------------------------
 
