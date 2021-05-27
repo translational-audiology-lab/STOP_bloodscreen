@@ -167,56 +167,31 @@ lm_prot_padj_by_max_t <- function(rhs, olinkdf, c_data, n_iter = 100, pos = 1) {
 }
 
 
-#' Compute q values. If an error occurs, BH procedure is used.
-#'
-#' @param p a numeric vector of p values 
-#'
-#' @return an object of \code{\link{qvalue::qvalue}}
-#' @importFrom qvalue qvalue
-compute_qval <- function(p) {
-  qvals <- try(qvalue::qvalue(p), silent= T)
-  
-  if(inherits(qvals, "try-error")) {
-    qvals <- qvalue::qvalue(p, pi0 = 1)    # BH procedure
-  }
-  qvals$call <- match.call() # copy the call
-  return(qvals)
-}
-
-#' Show p values and q values in a kable
+#' Show result and p values in a kable
 #'
 #' @param x a data frame that has `Pval`
 #' @param ... a selection of column names in \code{x} to show
-#' @param cutoff_q a cutoff based on q-value
 #' @param n number of hits to show. If \code{cutoff_q} is given, not used.
+#' @param after_p columns to show after `p value`
 #' @param caption caption in kable
-#' @seealso [compute_pval()]
-show_p_q <- function(x, ..., cutoff_q = NULL, n = 3, caption = paste("Top", n, "proteins")) {
-  stopifnot("Pval" %in% names(x))
-  if("qval" %in% names(x)) { # compute q-value unless exists already
-    res <- x
-  } else {
-    qvals <- compute_qval(x$Pval)
-    if(qvals$pi0 == 1) caption <- paste(caption, "(q value by BH)")
-    qvals <- qvals$qvalues
 
-    res <- x %>% 
-      mutate(qval = qvals)
-  }
+show_res_p <- function(x, ..., n = 3, caption = paste("Top", n, "proteins"), after_p = NULL) {
+  stopifnot("Pval" %in% names(x))
+
+  res <- x %>%  
+    slice_min(Pval, n = n) %>% 
+    select(..., "p value" = Pval, all_of(after_p))
   
-  res <- if(is.null(cutoff_q)) {
-    slice_min(res, Pval, n = n)
-  } else {
-    filter(res, qval < cutoff_q)
-  }
+  # align numeric to right
+  align <- sapply(res, is.numeric) %>% 
+    if_else("r", "l") %>% 
+    paste(collapse = "")
   
   res %>% 
-    arrange(Pval) %>% 
-    select(..., "p value" = Pval, "q value" = qval) %>% 
     # # * 10^x format, but doesn't work with scroll
     # mutate(across(where(is.numeric), pval_toLatex)) %>% 
     mutate(across(where(is.numeric), ~ format(.x, 3, digits = 3))) %>% 
-    kable(caption = caption) %>% 
+    kable(caption = caption, align = align) %>% 
     kable_styling(full_width = F)
 }
 
