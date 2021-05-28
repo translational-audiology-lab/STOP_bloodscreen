@@ -87,6 +87,21 @@ stopifnot(anyDuplicated(qns$ParticipantID) == 0)
 There are two columns for age, `Sampling Age` and `Age`, which are correlated ($R^2$ = `r signif(cor(qns[["Sampling Age"]], qns$Age)^2, 3)`). 
 `Age` is when tinnitus was defined, while `Sampling Age` is when blood was drawn. 
 
+### Body-mass-index (BMI)
+
+BMI was computed using height (`A3`) and weight (`A4`). 
+`r Words(length(about_table$bmi_extreme))` extreme values were observed. 
+Because they seems to be written wrong, <span style="background-color:greenyellow">the values were excluded manually</span>. 
+
+```{r}
+qns %>% 
+  filter(RID %in% about_table$bmi_extreme) %>% 
+  mutate(BMI = round(A4 / (A3 / 100)^2, 1)) %>% 
+  select(RID, Age, Sex, BMI, `Height (cm)` = A3, `Weight (kg)` = A4) %>% 
+  kbl() %>% 
+  kable_styling(full_width = F)
+```
+
 ### `Sample Lab`
 
 Samples were originally collected at 4 sample labs. 
@@ -94,7 +109,7 @@ Because `MEB Plan 4` is located in Stockholm and just one female patient sample 
 
 ### Variables with too many missing values. 
 
-<span style="background-color:greenyellow">`r english::Words(length(about_table$mostly_na))` variables having too many missing values (>80%) were removed.</span>
+<span style="background-color:greenyellow">`r Words(length(about_table$mostly_na))` variables having too many missing values (>80%) were removed.</span>
 They are listed below.
 
 ```{r}
@@ -103,18 +118,18 @@ cat(knitr::combine_words(about_table$mostly_na, before = "`"))
 
 ### Variables with the same value
 
-`r english::Words(nrow(about_table$one_value_only))` variables had only one identical value for all samples. 
+`r Words(nrow(about_table$one_value_only))` variables had only one identical value for all samples. 
 <span style="background-color:greenyellow">Those variables without any variation were removed</span>, which are listed below.
 
 ```{r}
 about_table$one_value_only %>% 
-    kable() %>% 
-    kable_styling(full_width = F)
+  kbl() %>% 
+  kable_styling(full_width = F)
 ```
 
 ### Variables with one identical value or NA
 
-`r english::Words(nrow(about_table$one_value_or_na))` variables had only one identical value or missing for all samples.
+`r Words(nrow(about_table$one_value_or_na))` variables had only one identical value or missing for all samples.
 <span style="background-color:greenyellow">Those variables were removed.</span>
 
 ```{r}
@@ -125,14 +140,14 @@ about_table$one_value_or_na %>%
 
 ###  Variables with wrong code book
 
-* `r english::Words(length(about_table$wrong_code$noyes))` variables for Yes / No question was supposed to be coded as `2` and `1`, according to the codebook. 
+* `r Words(length(about_table$wrong_code$noyes))` variables for Yes / No question was supposed to be coded as `2` and `1`, according to the codebook. 
 But the values found in those varaibles were `0` and `1`, <span style="background-color:greenyellow">which were translated into `No` and `Yes`, respectively</span>.
 
 ```{r}
 cat(knitr::combine_words(about_table$wrong_code$noyes, before = "`"))
 ```
 
-* `r english::Words(length(about_table$wrong_code$noyes_little_to_lot))` variables for 'No', 'Yes, a little', 'Yes, quite a lot', 'Yes, a lot' question was supposed to be coded with natural numbers from `1` to `4`, according to the codebook. 
+* `r Words(length(about_table$wrong_code$noyes_little_to_lot))` variables for 'No', 'Yes, a little', 'Yes, quite a lot', 'Yes, a lot' question was supposed to be coded with natural numbers from `1` to `4`, according to the codebook. 
 But the values found in those variables were unexpectedly `0` to `3`, <span style="background-color:greenyellow">which were translated into 'No', 'Yes, a little', 'Yes, quite a lot', and 'Yes, a lot', respectively</span>.
 
 ```{r}

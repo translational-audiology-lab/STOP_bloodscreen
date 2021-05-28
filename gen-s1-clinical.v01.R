@@ -272,8 +272,16 @@ qns <- qns %>%
   )
 
 ## Clean-up more ----------
+
+# outlier by BMI
+about_table$bmi_extreme <- qns %>% 
+  filter(BMI > 75 | BMI < 10) %>% 
+  pull(RID)
+
 qns <- qns %>% 
   mutate(
+    # remove extreme BMI
+    BMI = if_else(RID %in% about_table$bmi_extreme, NA_real_, BMI),
     # Merge `MEB plan 4` with `Stockholm`
     `Sample Lab` = if_else(`Sample Lab` == 'MEB Plan 4', 'Stockholm', `Sample Lab`)
   )
