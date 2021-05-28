@@ -313,4 +313,29 @@ pval_toLatex <- function(pval, digits = 3) {
 }
 
 
+#' Numbers in English
+#' 
+#' Almost identical to \code{\link{english::words}} or
+#' \code{\link{english::Words}} except \code{zero} or \code{Zero} will be
+#' replaced.
+#'
+#' @param x a vector of integers
+#' @param zero with what the \code{zero} or \code{Zero} will be replaced.
+#'   Defaults are \code{no} and \code{No}.
+#'
+#' @return a character vector of numbers expressed in English
+#' @name words
+words <- function(x, zero = "no") {
+  x <- english::words(x)
+  x[x == "zero"] <- zero
+  x
+}
+  
+#' @rdname words
+Words <- function(x, Zero = "No") {
+  x <- english::Words(x)
+  x[x == "Zero"] <- Zero
+  x
+}
+
 
