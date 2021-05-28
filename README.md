@@ -114,9 +114,9 @@ are ready in expected folders. The files were listed below the code lines.
 
 ```R
 source("master_data_generation.R")   # data generation
+source("master_heavy_analyses.R")   # data generation
 rmarkdown::render("report-5797-Tinnitus.Rmd")    # report writing
 ```
-
 
 
     ../data/raw_internal/202?-??-??/
@@ -147,6 +147,8 @@ proper order.
 
 The master script for computationally heavy analyses.
 
+* `anal-lm_resample_t.Rmd` : T statistics from resampling
+
 
 ### Report writing
 
@@ -162,6 +164,10 @@ support.
 * `report-QC-Olink_proteomic_data.Rmd` : About QC and preprocessing of Olink
 proteomic data
 * `report-overview_after_QC.Rmd` : Overview of the data after QC
+* `report-assoc-overall_samples.Rmd` : Association of individual proteins -
+overall samples
+* `report-assoc-females.Rmd` : Association of individual proteins - females only
+* `report-assoc-males.Rmd` : Association of individual proteins - males only
 
 
 #### Extra analyses
@@ -173,7 +179,7 @@ Primary reason was that we decided to focus on different analyses.
 
 * `styles.css` : CSS style, used by Rmarkdown (`.Rmd`) files for reports
 * `utils.R` : A collection of useful R functions
-
+* `citations_in_report.bib` : Bibliography for the reports
 
 ### Plots
 

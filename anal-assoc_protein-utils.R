@@ -7,7 +7,6 @@
 
 # Please note some functions are called directly using '::' or ':::'
 library(tidyverse)
-library(foreach)  # foreach, %dopar%
 
 #' Extract one line output from summary output
 #'
@@ -73,95 +72,69 @@ lm_out_t_stat <- function(f, data, pos = 1) {
 #' Because `purrr::nest`is much slower than `pivot_wider`, 'pivot_wider" was 
 #' chosen.
 #'
-#' @param rhs Right hand side of the formula that will be pass to
-#'   \code{\link{lm_out_t_stat}} and \code{\link{lm_out_1line}}. Left hand side
-#'   is fixed to "NPX".
+#' @param resample_t output of \code{\link{lm_prot_resample_t}}
 #' @param olinkdf a data frame that contain Olink data in long format
 #' @param c_data clinical data 
-#' @param n_iter number of iterations
 #' @param pos position of the variable of interest in the formula given in
 #'   \code{rhs}. \code{pos = 1} is for the first independent variable.
 #'
 #' @return a tibble in which each row has output including the adjusted P-value
-#' @import foreach
-#' @importFrom parallel detectCores
-#' @importFrom doParallel registerDoParallel
-#' @importFrom iterators isample
 #'
-#' @seealso [lm_out_t_stat()], [lm_out_1line()]
+#' @seealso [lm_out_1line()]
 #' @references 
 #' Westfall and Young's max-T method (1993)
 #' \url{https://fdhidalgo.github.io/multitestr/articles/multitestr.html#stepdown}
 
-lm_prot_padj_by_max_t <- function(rhs, olinkdf, c_data, n_iter = 100, pos = 1) {
-  # make sure unique sample IDs in the clinical data table
-  stopifnot(anyDuplicated(c_data$SampleID) == 0)
+lm_prot_padj_by_max_t <- function(resample_t, olinkdf, c_data, pos = 1) {
+  keys <- attr(resample_t, "key")
+  rhs <- keys$rhs
   
-  # proteins
-  prots <- unique(olinkdf$OlinkID)
-  # wide form
-  olinkdf_wide <- olinkdf %>% 
-    pivot_wider(SampleID, names_from = OlinkID, values_from = NPX)
-
+  # trim, because `c_data` can be huge
+  c_data <- c_data %>% 
+    select(SampleID, all_of(all.vars(formula(paste("~", rhs))))) %>% 
+    droplevels()
+  
+  # make sure the same input was used in lm_prot_resample_t
+  stopifnot(keys$c_data == digest::digest(c_data))
+  
+  # olink wide form + clinical info, common samples only
+  oc <- olinkdf %>% 
+    pivot_wider(SampleID, names_from = OlinkID, values_from = NPX) %>%   # wide
+    inner_join(c_data, by = "SampleID")
+  
+  # T-statistics collected during resampling
+  t_df <- resample_t[[pos]]   # for one term only
+  
   # observed T-statistics
-  oc <- inner_join(olinkdf_wide, c_data, by = "SampleID")
   obs <- map_dfr(
-    prots,
+    t_df$OlinkID,    # proteins
     function(ii) {
-      f <- formula(paste(ii, "~", rhs))
-      lm_out_1line(f, data = oc, pos = pos) %>% 
-        mutate(OlinkID = ii, .before = Model)
+      formula(paste(ii, "~", rhs)) %>% 
+        lm_out_1line(data = oc, pos = pos) %>% 
+        mutate(OlinkID = ii, .before = 1L)
     }
   ) %>% 
     mutate(
       t_obs = abs(`t value`),
       bonf_P = p.adjust(Pval, method= 'bonferroni')
     )
-
-  # backend for parallel computing
-  doParallel::registerDoParallel(cores = parallel::detectCores() - 1)
   
-  # T-statistics collected during resampling
-  T_rnd <- foreach(
-    # resampling
-    rnd = iterators::isample(c_data$SampleID, count = n_iter),
-    .inorder = FALSE,
-    .combine = 'cbind',
-    .packages = c("dplyr", "purrr")
-  ) %dopar% {
-    # Olink + randomized clinical data
-    oc <- c_data %>% 
-      mutate(SampleID = rnd) %>% 
-      inner_join(olinkdf_wide, ., by = "SampleID")
-    
-    # T-statistics from linear regression
-    map_dbl(
-      prots,
-      function(ii) {
-        f <- formula(paste(ii, "~", rhs))
-        abs(lm_out_t_stat(f, oc, pos = pos))
-      }
-    )
-  }
-
   # max T during resampling
-  Q_b <- T_rnd[order(obs$t_obs), ] %>% 
+  Q_b <- t_df %>% 
+    column_to_rownames("OlinkID") %>%   # remove OlinkID column
+    as.matrix() %>% 
+    `[`(order(obs$t_obs), ) %>%    # from min T_obs to max T_obs
+    abs() %>% 
     apply(2, cummax) %>% 
-    `[`(rank(obs$t_obs), )
-  
-  # # `order` <-> `rank`
-  # x <- c(sample(100), 20)
-  # identical(x, x[order(x)][rank(x)])
-  # identical(x, x[order(x, decreasing = T)][rank(-x)])
+    `[`(rank(obs$t_obs), )     # return to original order
   
   obs %>% 
     mutate(
       # adjusted p-values by resampling
-      perm_P = apply(Q_b >= t_obs, 1, function(x) sum(x) / length(x)) %>%
-        # successive maximization
-        {cummax(.[order(t_obs, decreasing = TRUE)])} %>% 
-        # return to original protein order
-        `[`(rank(-t_obs))
+      P_perm = apply(Q_b >= t_obs, 1, mean) %>%
+        `[`(order(t_obs, decreasing = TRUE)) %>%    # max T_obs -> min T_obs
+        cummax() %>%          # successive maximization
+        `[`(rank(-t_obs))         # return to original protein order
     ) %>% 
     select(-t_obs)
 }
