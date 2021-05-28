@@ -17,15 +17,13 @@ knit: (function(inputFile, encoding) {
   rmarkdown::render(inputFile, encoding= encoding, output_dir= "../reports") })
 ---
 
-```{r sinfo-setup, echo=FALSE, include=FALSE}
+```{r, echo=FALSE, include=FALSE}
 ## Pre-loaded packages
 # Please note that many functions were called directly from the package using 
 # double colon '::' to make the source clearer. 
 library(tidyverse)
 library(kableExtra)
 library(janitor)
-
-rm(list = ls())
 
 ## Chunk hooks
 knitr::knit_hooks$set(

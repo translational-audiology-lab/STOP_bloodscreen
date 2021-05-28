@@ -1,7 +1,7 @@
 ---
 params:
   panels: ["Inflammation", "Target 96 Neurology"]
-title: "Association test - Overall samples"
+title: "`r paste('Association test -', stringr::str_to_title(sex))`"
 author: "Mun-Gwan Hong"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
@@ -20,6 +20,8 @@ knit: (function(inputFile, encoding) {
 ---
 
 ```{r, echo=FALSE, include=FALSE}
+if(!exists("sex")) sex <- "female" # no passover then 'female' as default
+
 ## Chunk hooks
 knitr::knit_hooks$set(
   optipng = knitr::hook_optipng   # Ready to activate optipng (Optimize PNG)
@@ -31,7 +33,7 @@ knitr::opts_chunk$set(
   message = FALSE,    # no message from the code
   warning = FALSE,    # no warning from the code
 	cache.path = "../cache/",   # cache the results from heavy analyses
-  cache.extra = params$panels,
+  cache.extra = c(params$panels, sex),
   fig.width  = 8,
   fig.height = 6,
 	eval.after = "fig.cap",    # to add fig. caption within the chunk
@@ -63,7 +65,7 @@ fn <- list(
     perm_t = "../cache/lm_resample_t.RData"
 	),
   o = list(         # intermediate results
-    res = paste0("../cache/assoc-overall_samples-", 
+    res = paste0("../cache/assoc-", sex, "-", 
                  paste(params$panels, collapse = ","), ".RData")
   )
 )
@@ -79,15 +81,23 @@ load(fn$i$olk02)
 load(fn$i$c02)
 
 
+####### < FEMALES / MALES ONLY > #######
+qns <- qns %>% 
+  filter(Sex == str_to_title(sex))
+olink <- olink %>% 
+  filter(SampleID %in% qns$SampleID)
+
+
 ####### < SELECTED PANELS > #######
 olink <- olink %>% 
   filter(Panel %in% params$panels)
 
 
+
 # Load T statistics collected during resampling for max T test
 if(!exists("resample_t_res")) load(fn$i$perm_t)
 # number of permutation
-N_PERMUTATION <- ncol(resample_t_res[["overall"]][[1]][[1]]) - 1
+N_PERMUTATION <- ncol(resample_t_res[[sex]][[1]][[1]]) - 1
 
 # combine `olink` and `qns` for association tests
 olink_qns <- left_join(olink, qns, by = "SampleID")
@@ -99,6 +109,8 @@ n_prots <- n_distinct(proteins$OlinkID)
 # Initialize to store association test results
 assoc_res <- list()
 ```
+
+All analyses below were limited to **`r sex`** participants and Olink **`r params$panels`** panel(s).
 
 
 ## Background
@@ -133,12 +145,11 @@ The hearing problem variable (`TSCHQ_26`) is **missing** for a relatively large 
 `r round(sum(is.na(qns$TSCHQ_26)) / dim(qns)[1L] * 100, 1)`%). 
 Among them, only `r sum(is.na(qns$TSCHQ_26) & is.na(qns$Smoking))` participants' smoking status was also missing. 
 
-```{r assoc_res.overall.covariates, purl=TRUE, cache=TRUE}
+```{r, purl=TRUE}
 # Tibble of covariates and association test functions
 cvar_test <- tribble(
   ~rhs,                 ~test,
   "Age",                "lm",
-  "Sex",                "lm",
   "Smoking",            "aov",
   "`Sample Lab`",       "aov",
   "Age + `Sample Lab`", "aov",
@@ -179,7 +190,7 @@ assoc_res$covariates <- lapply(
 
 `r Words(n_distinct(cvar_test$test_for))` potential covariates were tested for the association with individual protein profiles.
 Several proteins were found correlated with some of those covariates.
-Especially, quite a large number of proteins were significantly associated with **age, sex and sample lab**. 
+Especially, quite a large number of proteins were significantly associated with **age and sample lab**. 
 So, those variables were included in most of following analyses as covariates.
 
 Summary table is shown below.
@@ -200,62 +211,13 @@ assoc_res$covariates %>%
   select(-prots) %>%
   rename(`Nr. or assoc.\nproteins` = N) %>% 
   mutate(
-    Term = str_remove(Term, "Female") %>%   # fix "SexFemale"
-      fct_relevel(unique(cvar_test$test_for)),  # show in the order as `cvar_test`
+    # show in the order as `cvar_test`
+    Term = fct_relevel(Term, unique(cvar_test$test_for)),
     Model = str_remove_all(Model, "`")
   ) %>% 
   arrange(Term) %>% 
   kbl(align = "llrrl") %>% 
   kable_styling()
-
-#' Show a summary table of the hits from regression models
-#'
-#' @param out_df a data frame to show
-#' @param ... arguments that will be passed to \code{\link{kabelExtra::kbl}}
-#'
-#' @return the same as \code{\link{kable}} output
-
-show_hit_table <- function(out_df, ...) {
-  out <- out_df %>% 
-    select(-Model, -Term) %>% 
-    select(Protein = Assay, everything())
-  # footnote for adj.P
-  names(out)[names(out) == "adj.P"] <- paste0("adj.P",
-                                              footnote_marker_symbol(1))
-  
-  dots <- list(...)
-  if(is.null(dots$align)) {
-    dots$align <- ifelse(sapply(out, is.numeric), "r", "l")
-  }
-  if(is.null(dots$escape)) dots$escape <- F   # footnote
-  
-  out %>% 
-    # # * 10^x format, but doesn't work with scroll
-    # mutate(across(where(is.numeric), pval_toLatex)) %>% 
-    mutate(across(where(is.numeric), ~ format(.x, 3, digits = 3))) %>% 
-    invoke(kbl, dots, .) %>% 
-    kable_styling(full_width = FALSE) %>% 
-    footnote(symbol = "The `adj.P` were Bonferroni adjusted P-values.")
-}
-
-#' Show a few examples in scatter plots
-#'
-#' @param oids Olink IDs
-#' @param x a variable to show in X-axis
-#' @param data given data frame
-
-show_examples <- function(oids, x, data = olink_qns) {
-  sorted_prots <- distinct(data, OlinkID, Assay) %>% 
-    slice(match(oids, OlinkID)) %>% 
-    pull(Assay)
-
-  data %>% 
-    filter(OlinkID %in% oids) %>% 
-    drop_na({{x}}) %>% 
-    mutate(Assay = factor(Assay, levels = sorted_prots)) %>%  # keep the order
-    ggplot(aes(x = {{x}}, y = NPX)) +
-    facet_wrap(~ Assay, scales = "free_y")
-}
 ```
 
 #### Age
@@ -270,58 +232,6 @@ hits$n_all <- nrow(bind_rows(hits))
 `r Words(hits$n_all)` proteins were found correlated with age by linear regression.
 Among them, the profiles of `r nrow(hits$inc)` proteins (`r round(nrow(hits$inc) / hits$n_all * 100, 1)`%) increased as age advances, 
 
-##### Increasing protein as age advances
-
-```{r, fig.height=3}
-show_hit_table(hits$inc) %>%
-  scroll_box(height = "180px")
-show_examples(hits$inc$OlinkID[1:3], Age) +
-  geom_point() +
-  ggtitle("Top 3 proteins increasing as age advances")
-```
-
-##### Decreasing protein as age advances
-
-```{r, fig.height=3}
-show_hit_table(hits$dec) %>%
-  scroll_box(height = "180px")
-show_examples(hits$dec$OlinkID[1:3], Age) +
-  geom_point() +
-  ggtitle("Top 3 proteins decreasing as age advances")
-```
-
-#### Sex
-
-```{r}
-# proteins with differential profiles between sexes
-hits <- filter(assoc_res$covariates$Sex, adj.P < 0.05) %>%
-  split(., recode(sign(.$Estimate), "1" = "h_f", "-1" = "h_m"))
-hits$n_all <- nrow(bind_rows(hits))
-```
-
-`r Words(hits$n_all)` proteins were found correlated with sex by linear regression.
-Among them, the profiles of `r nrow(hits$h_f)` proteins (`r round(nrow(hits$h_f) / hits$n_all * 100, 1)`%) were higher in females.
-
-##### Higher in females
-
-```{r, fig.height=3}
-show_hit_table(hits$h_f) %>%
-  scroll_box(height = "180px")
-show_examples(hits$h_f$OlinkID[1:3], Sex) +
-  geom_boxplot() +
-  ggtitle("Top 3 proteins higher in females")
-```
-
-##### Higher in males
-
-```{r, fig.height=3}
-show_hit_table(hits$h_m) %>%
-  scroll_box(height = "180px")
-show_examples(hits$h_m$OlinkID[1:3], Sex) +
-  geom_boxplot() +
-  ggtitle("Top 3 proteins higher in males")
-```
-
 #### Smoking (`A7`)
 
 ```{r}
@@ -329,15 +239,6 @@ hits <- filter(assoc_res$covariates$Smoking, adj.P < 0.05)
 ```
 
 `r Words(nrow(hits))` proteins were found correlated with smoking status by ANOVA. 
-
-```{r, fig.height=3}
-show_hit_table(hits) %>%
-  scroll_box(height = "180px")
-show_examples(hits$OlinkID[1:3], Smoking) +
-  geom_boxplot() +
-  ggtitle("Top 3 proteins associated with smoking status") +
-  theme(axis.text.x = element_text(angle = 15, margin = margin(t = 10)))
-```
 
 #### Sample Lab
 
@@ -353,16 +254,9 @@ hits$intx <- hits[["Age + Sample Lab"]] %>%
 
 `r Words(nrow(hits[["Sample Lab"]]))` proteins were found different across sample labs by ANOVA. 
 In order to take into account dissimilar age distribution between sample labs, the association was also tested after adjusting for age.
-`r Words(nrow(hits[["Age + Sample Lab"]]))` proteins were found after the adjustment.
-Among them, `r nrow(hits$intx)` proteins were in common, the results of which for the adjusted model are listed below.
-
-```{r, fig.height=3}
-show_hit_table(hits$intx) %>%
-  scroll_box(height = "180px")
-show_examples(hits$intx$OlinkID[1:3], `Sample Lab`) +
-  geom_boxplot() +
-  ggtitle("Top 3 proteins different across sample labs")
-```
+`r Words(nrow(hits[["Age + Sample Lab"]]))` proteins were found after the adjustment,
+which were `r knitr::combine_words(hits[["Age + Sample Lab"]]$Assay, before = "\x60")`.
+Among them, `r nrow(hits$intx)` proteins were in common.
 
 #### Collection Date (age of sample)
 
@@ -372,12 +266,6 @@ hits <- filter(assoc_res$covariates[["`Collection Date`"]], adj.P < 0.05)
 ```
 
 `r Words(nrow(hits))` protein was found correlated with sample collection date or the age of samples by linear regression.
-
-```{r, fig.width=4, fig.height=3}
-show_hit_table(hits)
-show_examples(hits$OlinkID, `Collection Date`) +
-  geom_point()
-```
 
 #### Assay Plate
 
@@ -405,7 +293,7 @@ It is often considered as a good method to handle multiple testing correction, b
 - Those **multiple testing corrections** (given as 'Adj.P by perm.' and 'q value') were conducted **per table**. 
 In other words, it was for all the tests of **a selected model only**. 
 Those corrections were not applied for controlling the family-wide error rate or positive false discovery rate of overall tests in this report. 
-As an example, the q values from the models for Tinnitus status including age, sex and smoking as covariate didn't take into account the tests without any adjustment nor the tests with hearing problem. 
+As an example, the q values from the models for Tinnitus status including age and smoking as covariate didn't take into account the tests without any adjustment nor the tests with hearing problem. 
 
 
 ### Assoc. with tinnitus status
@@ -441,7 +329,13 @@ show_delta_P_perm <- function(
   out_df, proteins, n = 5, caption = paste("Top", n, "proteins")
 ) {
   out_df %>% 
-    mutate(qval = qvalue::qvalue(Pval)$qvalues) %>% 
+    mutate(
+      qval = tryCatch(
+        qvalue::qvalue(out_df$Pval),
+        # ERROR: maximum p-value is smaller than lambda range.
+        error = function(cond) qvalue::qvalue_truncp(out_df$Pval)
+      )$qvalues
+    ) %>% 
     left_join(proteins, by = "OlinkID") %>% 
     show_res_p(
       Protein, 
@@ -455,15 +349,14 @@ show_delta_P_perm <- function(
 # No missing in those variables
 stopifnot(
   all(!is.na(qns$Age)),
-  all(!is.na(qns$Sex)),
   all(!is.na(qns$Tinnitus)),
   all(!is.na(qns$`Sample Lab`))
 )
 ```
 
-```{r assoc_res.overall.tinnitus, purl=TRUE, cache=TRUE}
+```{r, purl=TRUE}
 assoc_res$tinnitus <- map(
-  resample_t_res$overall,
+  resample_t_res[[sex]],
   ~ lm_prot_padj_by_max_t(.x, olink, qns, pos = 1L)
 )
 ```
@@ -481,10 +374,10 @@ was significantly associated with tinnitus (adjusted P by permutation < 0.05).
 show_delta_P_perm(out_df, proteins)
 ```
 
-##### Covariates included : **age and sex**
+##### Covariates included : **age**
 
 ```{r}
-out_df <- assoc_res$tinnitus[["Tinnitus + Age + Sex"]]
+out_df <- assoc_res$tinnitus[["Tinnitus + Age"]]
 ```
 
 * `r Words(sum(out_df$P_perm < 0.05))` protein
@@ -494,10 +387,10 @@ was significantly associated with tinnitus (adjusted P by permutation < 0.05).
 show_delta_P_perm(out_df, proteins)
 ```
 
-##### Covariates included : age, sex, and **sample lab**
+##### Covariates included : age and **sample lab**
 
 ```{r}
-out_df <- assoc_res$tinnitus[["Tinnitus + Age + Sex + `Sample Lab`"]]
+out_df <- assoc_res$tinnitus[["Tinnitus + Age + `Sample Lab`"]]
 ```
 
 * `r Words(sum(out_df$P_perm < 0.05))` protein
@@ -507,10 +400,10 @@ was significantly associated with tinnitus (adjusted P by permutation < 0.05).
 show_delta_P_perm(out_df, proteins)
 ```
 
-##### Covariates included : age, sex, and **smoking**
+##### Covariates included : age and **smoking**
 
 ```{r}
-out_df <- assoc_res$tinnitus[["Tinnitus + Age + Sex + Smoking"]]
+out_df <- assoc_res$tinnitus[["Tinnitus + Age + Smoking"]]
 ```
 
 * `r Words(sum(out_df$P_perm < 0.05))` protein
@@ -522,10 +415,10 @@ because smoking status of `r round(sum(is.na(qns$Smoking)) / nrow(qns) * 100, 1)
 show_delta_P_perm(out_df, proteins)
 ```
 
-##### Covariates included : age, sex, **sample lab**, and **smoking**
+##### Covariates included : age, **sample lab**, and **smoking**
 
 ```{r}
-out_df <- assoc_res$tinnitus[["Tinnitus + Age + Sex + `Sample Lab` + Smoking"]]
+out_df <- assoc_res$tinnitus[["Tinnitus + Age + `Sample Lab` + Smoking"]]
 ```
 
 * `r Words(sum(out_df$P_perm < 0.05))` protein
@@ -536,10 +429,10 @@ was significantly associated with tinnitus (adjusted P by permutation < 0.05).
 show_delta_P_perm(out_df, proteins)
 ```
 
-##### Covariates included : **hearing problem** (`TSCHQ_26`) as well as age, sex, and smoking
+##### Covariates included : **hearing problem** (`TSCHQ_26`) as well as age and smoking
 
 ```{r}
-out_df <- assoc_res$tinnitus[["Tinnitus + Age + Sex + Smoking + TSCHQ_26"]]
+out_df <- assoc_res$tinnitus[["Tinnitus + Age + Smoking + TSCHQ_26"]]
 ```
 
 * `r Words(sum(out_df$P_perm < 0.05))` protein
@@ -549,56 +442,13 @@ was significantly associated with tinnitus (adjusted P by permutation < 0.05).
 show_delta_P_perm(out_df, proteins)
 ```
 
-##### Covariates included : age, sex, sample lab, smoking, and hearing problem
+##### Covariates included : age, sample lab, smoking, and hearing problem
 
 ```{r}
-out_df <- assoc_res$tinnitus[["Tinnitus + Age + Sex + `Sample Lab` + Smoking + TSCHQ_26"]]
+out_df <- assoc_res$tinnitus[["Tinnitus + Age + `Sample Lab` + Smoking + TSCHQ_26"]]
 ```
 
 * Due to missing smoking and/or hearing problem status, only `r nrow(drop_na(qns, Smoking, TSCHQ_26))` samples were included in this analysis.
-* `r Words(sum(out_df$P_perm < 0.05))` protein
-was significantly associated with tinnitus (adjusted P by permutation < 0.05). 
-
-```{r}
-show_delta_P_perm(out_df, proteins)
-```
-
-#### Limited to non-hearing aid users
-
-```{r, purl=TRUE}
-qns_non_aids <- filter(qns, non_aids_analysis)
-```
-
-```{r assoc_res.overall.non_aid_user, purl=TRUE, cache=TRUE}
-assoc_res$non_aid_user <- map(
-  resample_t_res$non_aid_user,
-  ~ lm_prot_padj_by_max_t(.x, olink, qns_non_aids, pos = 1L)
-)
-```
-
-* There were `r sum(qns$A14_1 == "Yes", na.rm = TRUE)` hearing aid users.
-After excluding the users together with matched non-users, `r nrow(qns_non_aids)` were remained for this analysis.
-
-##### Covariates included : age, sex, and sample lab
-
-```{r}
-out_df <- assoc_res$non_aid_user[["Tinnitus + Age + Sex + `Sample Lab`"]]
-```
-
-* `r Words(sum(out_df$P_perm < 0.05))` protein
-was significantly associated with tinnitus (adjusted P by permutation < 0.05). 
-
-```{r}
-show_delta_P_perm(out_df, proteins)
-```
-
-##### Covariates included : age, sex, sample lab, smoking, and hearing problem
-
-```{r}
-out_df <- assoc_res$non_aid_user[["Tinnitus + Age + Sex + `Sample Lab` + Smoking + TSCHQ_26"]]
-```
-
-* Due to missing smoking and/or hearing problem status, only `r nrow(drop_na(qns_non_aids, Smoking, TSCHQ_26))` samples were included in this analysis.
 * `r Words(sum(out_df$P_perm < 0.05))` protein
 was significantly associated with tinnitus (adjusted P by permutation < 0.05). 
 
@@ -630,13 +480,13 @@ stress <- tribble(
 
 ##### Individual stress related variables
 
-* Covariates included : **individual stress related variables** as well as age, sex, smoking, and Sample Lab
+* Covariates included : **individual stress related variables** as well as age, smoking, and Sample Lab
 
-- `lm(Protein ~ (tinnitus status) + age + sex + smoking + sample lab + "a stress")`
+- `lm(Protein ~ (tinnitus status) + age + smoking + sample lab + "a stress")`
 
 ```{r}
 for(ii in 1:nrow(stress)) {
-  rhs <- paste("Tinnitus + Age + Sex + Smoking + `Sample Lab` +", stress$with_q[ii])
+  rhs <- paste("Tinnitus + Age + Smoking + `Sample Lab` +", stress$with_q[ii])
   print(show_delta_P_perm(
     assoc_res$tinnitus[[rhs]], proteins,
     caption = paste0(stress$desc[ii], " (", stress$lab[ii], ")")
@@ -646,13 +496,13 @@ for(ii in 1:nrow(stress)) {
 
 ##### **All `r words(nrow(stress))` stress related variables**
 
-* Covariates included : **all `r nrow(stress)` stress related variables** plus age, sex, smoking, and Sample Lab
+* Covariates included : **all `r nrow(stress)` stress related variables** plus age, smoking, and Sample Lab
 
-- `lm(Protein ~ (tinnitus status) + age + sex + smoking + sample lab + stress 1 + stress 2 + ... + stress i)`
+- `lm(Protein ~ (tinnitus status) + age + smoking + sample lab + stress 1 + stress 2 + ... + stress i)`
 
 ```{r}
 rhs <- paste(stress$with_q, collapse = " + ") %>% 
-  paste("Tinnitus + Age + Sex + Smoking + `Sample Lab` +", .)
+  paste("Tinnitus + Age + Smoking + `Sample Lab` +", .)
 print(show_delta_P_perm(
   assoc_res$tinnitus[[rhs]], proteins,
   caption = paste("All", nrow(stress), "stress related variables")
@@ -681,22 +531,22 @@ stress %>%
 ##### Statistical models for association tests
 
 - Linear regression model or ANOVA for the association between one protein and **individual stress related variables**, 
-including age, sex, smoking, sample lab, and tinnitus status.
+including age, smoking, sample lab, and tinnitus status.
 
-- `lm(Protein ~ (a stress variable) + age + sex + smoking + sample lab + tinnitus status)`
+- `lm(Protein ~ (a stress variable) + age + smoking + sample lab + tinnitus status)`
 
-```{r assoc_res.overall.stress, purl=TRUE, cache=TRUE}
+```{r, purl=TRUE}
 stress_rhs <- map_chr(
   1:nrow(stress),
-  ~ paste("Tinnitus + Age + Sex + Smoking + `Sample Lab` +", stress$with_q[ii])
+  ~ paste("Tinnitus + Age + Smoking + `Sample Lab` +", stress$with_q[ii])
 )
-# names(resample_t_res$overall[stress_rhs[1]][[1]])
-# [1] "TinnitusYes, always"   "Age"                   "SexFemale"            
-# [4] "SmokingCurrent smoker" "SmokingEx-smoker"      "`Sample Lab`Stureplan"
-# [7] "`Sample Lab`Umeå"      "`PSQ Total score`" 
+# names(resample_t_res[[sex]][stress_rhs[1]][[1]])
+# [1] "TinnitusYes, always"   "Age"                   "SmokingCurrent smoker"
+# [4] "SmokingEx-smoker"      "`Sample Lab`Stureplan" "`Sample Lab`Umeå"     
+# [7] "`PSQ Total score`" 
 assoc_res$stress <- map(
-  resample_t_res$overall[stress_rhs],
-  ~ lm_prot_padj_by_max_t(.x, olink, qns, pos = 8L)
+  resample_t_res[[sex]][stress_rhs],
+  ~ lm_prot_padj_by_max_t(.x, olink, qns, pos = 7L)
 )
 ```
 
@@ -752,17 +602,17 @@ for(ii in 1:nrow(stress)) {
 ##### Statistical models for association tests
 
 - Linear regression model for the association between one protein and **hearing problem (Yes vs. No)**, 
-including age, sex, smoking, and sample lab.
+including age, smoking, and sample lab.
 
-- `lm(Protein ~ (hearing problem) + age + sex + smoking + sample lab`
+- `lm(Protein ~ (hearing problem) + age + smoking + sample lab`
 
-```{r assoc_res.overall.hearing_problem, purl=TRUE, cache=TRUE}
+```{r, purl=TRUE}
 # Association tests
 assoc_res$hearing_problem <- olink_qns %>%
   nest(data = -c(OlinkID, Assay)) %>%
   add_column(map_dfr(.$data, ~ lm_out_1line(
     # to avoid too large cache
-    NPX ~ TSCHQ_26 + Age + Sex + Smoking + `Sample Lab`, .x
+    NPX ~ TSCHQ_26 + Age + Smoking + `Sample Lab`, .x
   ))) %>%
   select(-data) %>% 
   mutate(qval = qvalue::qvalue(Pval)$qvalues)
@@ -797,9 +647,9 @@ tinnitus_subtypes <- list(
 ##### Statistical models for association tests
 
 - ANOVA for the association between one protein and **individual sub-type variables**, 
-including age, sex, smoking, and sample lab.
+including age, smoking, and sample lab.
 
-- `aov(Protein ~ age + sex + smoking + sample lab + (a subtype variable))`
+- `aov(Protein ~ age + smoking + sample lab + (a subtype variable))`
 
 - Please note the number of samples analyzed here was substantially lower, due to missing data of many samples.
 
@@ -809,18 +659,23 @@ Because it is known that ANOVA is sensitive to **homoscedasticity** assumption (
 _p_ values from Bartlett's test were shown in the result tables. 
 When the _p_ value is significant, the association detected by ANOVA was shown significant possibly by heteroscedasticity rather than real difference in mean. 
 
-```{r assoc_res.overall.subtype.cat, purl=TRUE, cache=TRUE}
+```{r, purl=TRUE}
 # Association tests
 assoc_res$subtype$cat <- sapply(
   tinnitus_subtypes$cat,
   function(ii) {
-    f <- formula(paste("NPX ~ Age + Sex + Smoking + `Sample Lab` +", ii))
+    f <- formula(paste("NPX ~ Age + Smoking + `Sample Lab` +", ii))
     f_b <- formula(paste("NPX ~", ii))  # formula for Bartlett test
     olink_qns %>%
       select(OlinkID, Assay, all_of(all.vars(f))) %>% # due to too wide table
       nest(data = -c(OlinkID, Assay)) %>%
       add_column(map_dfr(.$data, ~ aov_out_1line(f, .x))) %>%
-      mutate(`Bartlett P` = map_dbl(data, ~ bartlett.test(f_b, .x)$p.value)) %>% 
+      mutate(
+        `Bartlett P` = map_dbl(
+          data, ~ tryCatch(bartlett.test(f_b, .x)$p.value,
+                           error = function(cond) NA_real_) # at least 2
+        )
+      ) %>% 
       select(-data) %>% 
       mutate(qval = qvalue::qvalue(Pval)$qvalues)
   },
@@ -871,16 +726,16 @@ for(ii in tinnitus_subtypes$cat) {
 ##### Statistical models for association tests
 
 - Linear regression for the association between one protein and **individual sub-type variables**, 
-including age, sex, smoking, and sample lab.
+including age, smoking, and sample lab.
 
-- `lm(Protein ~ (a subtype variable) + age + sex + smoking + sample lab)`
+- `lm(Protein ~ (a subtype variable) + age + smoking + sample lab)`
 
-```{r assoc_res.overall.subtype.qty, purl=TRUE, cache=TRUE}
+```{r, purl=TRUE}
 # Association tests
 assoc_res$subtype$qty <- sapply(
   tinnitus_subtypes$qty,
   function(ii) {
-    f <- formula(paste("NPX ~", ii, "+ Age + Sex + Smoking + `Sample Lab`"))
+    f <- formula(paste("NPX ~", ii, "+ Age + Smoking + `Sample Lab`"))
     olink_qns %>%
       select(OlinkID, Assay, all_of(all.vars(f))) %>% # due to too wide table
       nest(data = -c(OlinkID, Assay)) %>%
@@ -949,15 +804,15 @@ stopifnot(all(tmp == tmp[1]))
 - Every THI score was coded as ordered categories (e.g. `Yes`, `Sometimes` and `No`).
 
 - Linear regression for the association between one protein and **individual THI scores**, 
-including age, sex, smoking, and sample lab.
+including age, smoking, and sample lab.
 
-- `lm(Protein ~ (a THI score) + age + sex + smoking + sample lab)`
+- `lm(Protein ~ (a THI score) + age + smoking + sample lab)`
 
 - The _p_ values were adjusted for all tested proteins and all `r length(tinnitus_handi_inv)` THI variables.
 
 - Due to missing information, `r nrow(drop_na(qns, Smoking, all_of(tinnitus_handi_inv)))` samples were analyzed here.
 
-```{r assoc_res.overall.THI_scores, purl=TRUE, cache=TRUE}
+```{r, purl=TRUE}
 # backend for parallel computing
 doParallel::registerDoParallel(cores = parallel::detectCores() - 1)
   
@@ -972,7 +827,7 @@ assoc_res$THI_scores <- foreach(
     nest(data = -c(OlinkID, Assay)) %>%
     add_column(map_dfr(.$data, ~ lm_out_1line(
       # to avoid too large cache
-      formula(paste("NPX ~", ii, "+ Age + Sex + Smoking + `Sample Lab`")), 
+      formula(paste("NPX ~", ii, "+ Age + Smoking + `Sample Lab`")), 
       .x
     ))) %>%
     select(-data)
@@ -1024,21 +879,21 @@ if(any(is_hit)) {
 #### THI total score
 
 - Linear regression for the association between one protein and **THI total score**, 
-including age, sex, smoking, and sample lab.
+including age, smoking, and sample lab.
 
-- `lm(Protein ~ (THI total score) + age + sex + smoking + sample lab)`
+- `lm(Protein ~ (THI total score) + age + smoking + sample lab)`
 
 - Due to missing information, `r nrow(drop_na(qns, Smoking, all_of("THI Total score")))` samples were analyzed here.
 
 ##### Numeric score
 
-```{r assoc_res.overall.THI_total_score.num, purl=TRUE, cache=TRUE}
+```{r, purl=TRUE}
 # Association tests
 out_df <- assoc_res$THI_total_score$num <- olink_qns %>%
   nest(data = -c(OlinkID, Assay)) %>%
   add_column(map_dfr(.$data, ~ lm_out_1line(
     # to avoid too large cache
-    NPX ~ `THI Total score` + Age + Sex + Smoking + `Sample Lab`, .x
+    NPX ~ `THI Total score` + Age + Smoking + `Sample Lab`, .x
   ))) %>%
   select(-data) %>% 
   mutate(qval = qvalue::qvalue(Pval)$qvalues)
@@ -1071,7 +926,7 @@ score_cut %>%
   kable_styling(full_width = FALSE)
 ```
 
-```{r assoc_res.overall.THI_total_score.ord, purl=TRUE, cache=TRUE}
+```{r, purl=TRUE}
 # Association tests
 out_df <- assoc_res$THI_total_score$ord <- olink_qns %>% 
   mutate(
@@ -1086,7 +941,7 @@ out_df <- assoc_res$THI_total_score$ord <- olink_qns %>%
   nest(data = -c(OlinkID, Assay)) %>%
   add_column(map_dfr(.$data, ~ lm_out_1line(
     # to avoid too large cache
-    NPX ~ THI.Total.score.cat + Age + Sex + Smoking + `Sample Lab`, .x
+    NPX ~ THI.Total.score.cat + Age + Smoking + `Sample Lab`, .x
   ))) %>%
   select(-data) %>% 
   mutate(qval = qvalue::qvalue(Pval)$qvalues)
@@ -1105,12 +960,12 @@ out_df %>%
 
 #### Statistical test models
 
-- Linear regression model for the association between one protein and one of selected variables, including age, sex, smoking, and sample lab.
+- Linear regression model for the association between one protein and one of selected variables, including age, smoking, and sample lab.
 If both cases and controls were included, tinnitus status was also included as an adjusting factor.
 
-- `lm(Protein ~ (a variable) + age + sex + smoking + sample lab + tinnitus)`
+- `lm(Protein ~ (a variable) + age + smoking + sample lab + tinnitus)`
 
-```{r assoc_res.overall.others, purl=TRUE, cache=TRUE}
+```{r, purl=TRUE}
 others <- tribble(
   ~lab,      ~test,  ~desc,
   "Intro_8",  "lm", "Gross income",
@@ -1128,7 +983,7 @@ assoc_res$others <- lapply(
   1:nrow(others),
   function(ii) {
     f <- formula(paste(
-      "NPX ~", others$lab[ii], "+ Age + Sex + Smoking + `Sample Lab` + Tinnitus"
+      "NPX ~", others$lab[ii], "+ Age + Smoking + `Sample Lab` + Tinnitus"
     ))
     no_na <- olink_qns %>%
       select(OlinkID, Assay, all_of(all.vars(f))) %>% 

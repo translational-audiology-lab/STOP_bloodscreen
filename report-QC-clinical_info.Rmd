@@ -24,8 +24,6 @@ knit: (function(inputFile, encoding) {
 library(tidyverse)
 library(kableExtra)
 
-rm(list = ls())
-
 ## Chunk hooks
 knitr::knit_hooks$set(
   optipng = knitr::hook_optipng   # Optimize PNG plots
