@@ -101,13 +101,12 @@ lm_prot_padj_by_max_t <- function(resample_t, olinkdf, c_data, pos = 1) {
   oc <- olinkdf %>% 
     pivot_wider(SampleID, names_from = OlinkID, values_from = NPX) %>%   # wide
     inner_join(c_data, by = "SampleID")
-  
-  # T-statistics collected during resampling
-  t_df <- resample_t[[pos]]   # for one term only
-  
+
+  prots <- tibble(OlinkID = unique(olinkdf$OlinkID))    # proteins
+
   # observed T-statistics
   obs <- map_dfr(
-    t_df$OlinkID,    # proteins
+    prots$OlinkID,
     function(ii) {
       formula(paste(ii, "~", rhs)) %>% 
         lm_out_1line(data = oc, pos = pos) %>% 
@@ -120,7 +119,8 @@ lm_prot_padj_by_max_t <- function(resample_t, olinkdf, c_data, pos = 1) {
     )
   
   # max T during resampling
-  Q_b <- t_df %>% 
+  Q_b <- resample_t[[pos]] %>%    # for one term only
+    left_join(prots, ., by = "OlinkID") %>%   # limit to those in `olinkdf`
     column_to_rownames("OlinkID") %>%   # remove OlinkID column
     as.matrix() %>% 
     `[`(order(obs$t_obs), ) %>%    # from min T_obs to max T_obs
