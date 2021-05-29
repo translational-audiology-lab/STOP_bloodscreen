@@ -1,6 +1,7 @@
 # -----------------------------------------------------------------------------#
 # 1. Limit the samples to those with proteomic data
 # 2. Add 'non_aids_analysis' for the analysis limited to non-hearing-aid users
+# 3. `qset` questions sets (e.g. stress)
 # -----------------------------------------------------------------------------#
 # initiated on 2021-05-21
 # authors :  Mun-Gwan Hong
@@ -102,6 +103,34 @@ qns <- qns %>%
     )
   )
 
+
+# Auestion sets -----------------------------------------------------------
+
+qsets = list()
+
+# stress related variables
+qsets$stress <- tribble(
+  ~lab,                 ~desc,
+  "PSQ Total score",    "Stress",
+  "HADS_A Total score", "Anxiety",
+  "HADS_D Total score", "Depression",
+  "HQ Total score",     "Hyperacusis",
+  "A15_4",              "Temporomandibular joint pain",
+  "A15_1",              "headache"
+) %>% 
+  mutate(with_q = paste0("`", lab, "`"))
+
+# Find sub-type variables 
+qsets$tinnitus_subtypes <- list(
+  cat = c("TSCHQ_5", "TSCHQ_7", "TSCHQ_8", "TSCHQ_9", "TSCHQ_15", "TSCHQ_18", 
+          "TSCHQ_22", "TSCHQ_24", "TSCHQ_27"),
+  qty = c("TSCHQ_12", "TSCHQ_16", "TSCHQ_17")
+)
+
+# find Tinnitus Handicap Inventory scores
+qsets$tinnitus_handi_inv <- Filter(function(x) grepl("^THI_", x), names(qns))
+
+
 # Save --------------------------------------------------------------------
 
-save(qns, codes, about_table, file = fn$o$c02)
+save(qns, codes, qsets, about_table, file = fn$o$c02)
