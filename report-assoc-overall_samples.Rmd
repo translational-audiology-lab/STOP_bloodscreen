@@ -1,6 +1,4 @@
 ---
-params:
-  panels: ["Inflammation", "Target 96 Neurology"]
 title: "Association test - Overall samples"
 author: "Mun-Gwan Hong"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
@@ -20,6 +18,9 @@ knit: (function(inputFile, encoding) {
 ---
 
 ```{r, echo=FALSE, include=FALSE}
+# the default, when no passover
+if(!exists("panels")) panels <- c("Inflammation", "Neurology")
+
 ## Chunk hooks
 knitr::knit_hooks$set(
   optipng = knitr::hook_optipng   # Ready to activate optipng (Optimize PNG)
@@ -31,7 +32,7 @@ knitr::opts_chunk$set(
   message = FALSE,    # no message from the code
   warning = FALSE,    # no warning from the code
 	cache.path = "../cache/",   # cache the results from heavy analyses
-  cache.extra = params$panels,
+  cache.extra = panels,
   fig.width  = 8,
   fig.height = 6,
 	eval.after = "fig.cap",    # to add fig. caption within the chunk
@@ -64,7 +65,7 @@ fn <- list(
 	),
   o = list(         # intermediate results
     res = paste0("../cache/assoc-overall_samples-", 
-                 paste(params$panels, collapse = ","), ".RData")
+                 paste(panels, collapse = ","), ".RData")
   )
 )
 # Brief check if all files exist
@@ -81,7 +82,7 @@ load(fn$i$c02)
 
 ####### < SELECTED PANELS > #######
 olink <- olink %>% 
-  filter(Panel %in% params$panels)
+  filter(Panel %in% panels)
 
 
 # Load T statistics collected during resampling for max T test
@@ -120,15 +121,27 @@ olink_qns %>%
 
 ### Prior observation about on relevant variables
 
+#### Body-mass-index (BMI)
+
+BMI is **missing** for a relatively large proportion of participants
+(N = `r sum(is.na(qns$BMI))`, 
+`r round(sum(is.na(qns$BMI)) / dim(qns)[1L] * 100, 1)`%).
+
 #### Smoking
 
-The smoking status is **missing** for a relatively large proportion of participants
+```{r}
+# confirm the statement below
+stopifnot(all(is.na(qns$BMI[is.na(qns$Smoking)])))
+```
+
+Smoking status is **missing** for a relatively large proportion of participants
 (N = `r sum(is.na(qns$Smoking))`, 
 `r round(sum(is.na(qns$Smoking)) / dim(qns)[1L] * 100, 1)`%).
+For all of them, BMI was also missing.
 
 #### Hearing problem
 
-The hearing problem variable (`TSCHQ_26`) is **missing** for a relatively large proportion of participants
+Hearing problem data (`TSCHQ_26`) is **missing** for a relatively large proportion of participants
 (N = `r sum(is.na(qns$TSCHQ_26))`, 
 `r round(sum(is.na(qns$TSCHQ_26)) / dim(qns)[1L] * 100, 1)`%). 
 Among them, only `r sum(is.na(qns$TSCHQ_26) & is.na(qns$Smoking))` participants' smoking status was also missing. 
@@ -139,6 +152,7 @@ cvar_test <- tribble(
   ~rhs,                 ~test,
   "Age",                "lm",
   "Sex",                "lm",
+  "BMI",                "lm",
   "Smoking",            "aov",
   "`Sample Lab`",       "aov",
   "Age + `Sample Lab`", "aov",
@@ -179,7 +193,7 @@ assoc_res$covariates <- lapply(
 
 `r Words(n_distinct(cvar_test$test_for))` potential covariates were tested for the association with individual protein profiles.
 Several proteins were found correlated with some of those covariates.
-Especially, quite a large number of proteins were significantly associated with **age, sex and sample lab**. 
+Especially, quite a large number of proteins were significantly associated with **age, sex, BMI and sample lab**. 
 So, those variables were included in most of following analyses as covariates.
 
 Summary table is shown below.
@@ -320,6 +334,38 @@ show_hit_table(hits$h_m) %>%
 show_examples(hits$h_m$OlinkID[1:3], Sex) +
   geom_boxplot() +
   ggtitle("Top 3 proteins higher in males")
+```
+
+#### BMI
+
+```{r}
+# increasing/decreasing proteins as BMI
+hits <- filter(assoc_res$covariates$BMI, adj.P < 0.05) %>%
+  split(., recode(sign(.$Estimate), "1" = "inc", "-1" = "dec"))
+hits$n_all <- nrow(bind_rows(hits))
+```
+
+`r Words(hits$n_all)` proteins were found correlated with BMI by linear regression.
+Among them, the profiles of `r nrow(hits$inc)` proteins (`r round(nrow(hits$inc) / hits$n_all * 100, 1)`%) increased as BMI, 
+
+##### Increasing protein as BMI
+
+```{r, fig.height=3}
+show_hit_table(hits$inc) %>%
+  scroll_box(height = "180px")
+show_examples(hits$inc$OlinkID[1:3], BMI) +
+  geom_point() +
+  ggtitle("Top 3 proteins increasing as BMI")
+```
+
+##### Decreasing protein as BMI
+
+```{r, fig.height=3}
+show_hit_table(hits$dec) %>%
+  scroll_box(height = "180px")
+show_examples(hits$dec$OlinkID[1:3], BMI) +
+  geom_point() +
+  ggtitle("Top 3 proteins decreasing as BMI")
 ```
 
 #### Smoking (`A7`)
@@ -608,25 +654,11 @@ show_delta_P_perm(out_df, proteins)
 
 #### Additional results with adjustment for stress variables
 
-```{r}
-# stress related variables
-stress <- tribble(
-  ~lab,                 ~desc,
-  "PSQ Total score",    "Stress",
-  "HADS_A Total score", "Anxiety",
-  "HADS_D Total score", "Depression",
-  "HQ Total score",     "Hyperacusis",
-  "A15_4",              "Temporomandibular joint pain",
-  "A15_1",              "headache"
-) %>% 
-  mutate(with_q = paste0("`", lab, "`"))
-```
-
-- Stress related variables : `r knitr::combine_words(stress$with_q)`.
+- Stress related variables : `r knitr::combine_words(qsets$stress$with_q)`.
 
 - Tests for association between tinnitus and individual proteins
 
-- Due to missing information, `r nrow(drop_na(qns, Smoking, all_of(stress$lab)))` samples were analyzed here.
+- Due to missing information, `r nrow(drop_na(qns, Smoking, all_of(qsets$stress$lab)))` samples were analyzed here.
 
 ##### Individual stress related variables
 
@@ -635,27 +667,27 @@ stress <- tribble(
 - `lm(Protein ~ (tinnitus status) + age + sex + smoking + sample lab + "a stress")`
 
 ```{r}
-for(ii in 1:nrow(stress)) {
-  rhs <- paste("Tinnitus + Age + Sex + Smoking + `Sample Lab` +", stress$with_q[ii])
+for(ii in 1:nrow(qsets$stress)) {
+  rhs <- paste("Tinnitus + Age + Sex + Smoking + `Sample Lab` +", qsets$stress$with_q[ii])
   print(show_delta_P_perm(
     assoc_res$tinnitus[[rhs]], proteins,
-    caption = paste0(stress$desc[ii], " (", stress$lab[ii], ")")
+    caption = paste0(qsets$stress$desc[ii], " (", qsets$stress$lab[ii], ")")
   ))
 }
 ```
 
-##### **All `r words(nrow(stress))` stress related variables**
+##### **All `r words(nrow(qsets$stress))` stress related variables**
 
-* Covariates included : **all `r nrow(stress)` stress related variables** plus age, sex, smoking, and Sample Lab
+* Covariates included : **all `r nrow(qsets$stress)` stress related variables** plus age, sex, smoking, and Sample Lab
 
 - `lm(Protein ~ (tinnitus status) + age + sex + smoking + sample lab + stress 1 + stress 2 + ... + stress i)`
 
 ```{r}
-rhs <- paste(stress$with_q, collapse = " + ") %>% 
+rhs <- paste(qsets$stress$with_q, collapse = " + ") %>% 
   paste("Tinnitus + Age + Sex + Smoking + `Sample Lab` +", .)
 print(show_delta_P_perm(
   assoc_res$tinnitus[[rhs]], proteins,
-  caption = paste("All", nrow(stress), "stress related variables")
+  caption = paste("All", nrow(qsets$stress), "stress related variables")
 ))
 ```
 
@@ -670,13 +702,13 @@ print(show_delta_P_perm(
 - Stress related variables
 
 ```{r}
-stress %>% 
+qsets$stress %>% 
   select("Variable ID" = "lab", "Description" = "desc") %>% 
   kbl() %>% 
   kable_styling(full_width = FALSE)
 ```
 
-- Due to missing information, `r nrow(drop_na(qns, Smoking, all_of(stress$lab)))` samples were analyzed here.
+- Due to missing information, `r nrow(drop_na(qns, Smoking, all_of(qsets$stress$lab)))` samples were analyzed here.
 
 ##### Statistical models for association tests
 
@@ -687,10 +719,10 @@ including age, sex, smoking, sample lab, and tinnitus status.
 
 ```{r assoc_res.overall.stress, purl=TRUE, cache=TRUE}
 stress_rhs <- map_chr(
-  1:nrow(stress),
-  ~ paste("Tinnitus + Age + Sex + Smoking + `Sample Lab` +", stress$with_q[ii])
+  1:nrow(qsets$stress),
+  ~ paste("Tinnitus + Age + Sex + Smoking + `Sample Lab` +", qsets$stress$with_q[ii])
 )
-# names(resample_t_res$overall[stress_rhs[1]][[1]])
+# names(resample_t_res$overall[qsets$stress_rhs[1]][[1]])
 # [1] "TinnitusYes, always"   "Age"                   "SexFemale"            
 # [4] "SmokingCurrent smoker" "SmokingEx-smoker"      "`Sample Lab`Stureplan"
 # [7] "`Sample Lab`Umeå"      "`PSQ Total score`" 
@@ -714,27 +746,27 @@ tmp <- map(assoc_res$stress, ~ (.x$P_perm < 0.05))
 * `r Words(sum(unlist(tmp)))` protein was significantly associated with one of stress variables (adjusted P by permutation < 0.05). 
 
 ```{r, fig.width=5, fig.height=4}
-for(ii in 1:nrow(stress)) {
+for(ii in 1:nrow(qsets$stress)) {
   p <- assoc_res$stress[[ii]] %>% 
     left_join(proteins, by = "OlinkID") %>% 
     show_res_p(
       Protein, Estimate, "Adj.P by perm." = P_perm,
-      caption = paste0(stress$desc[ii], " (", stress$lab[ii], ")")
+      caption = paste0(qsets$stress$desc[ii], " (", qsets$stress$lab[ii], ")")
     )
   print(p)
 } 
 
-for(ii in 1:nrow(stress)) {
+for(ii in 1:nrow(qsets$stress)) {
   if(any(tmp[[ii]])) {
     hits <- assoc_res$stress[[ii]]$OlinkID[tmp[[ii]]]
     p <- olink_qns %>% 
       filter(OlinkID %in% hits) %>%
-      drop_na(NPX, Assay, all_of(stress$lab[ii])) %>% 
+      drop_na(NPX, Assay, all_of(qsets$stress$lab[ii])) %>% 
       ggplot() +
-      aes_string(x = stress$with_q[ii], y = "NPX") +
+      aes_string(x = qsets$stress$with_q[ii], y = "NPX") +
       facet_wrap(~ Assay) +
-      ggtitle(paste0(stress$desc[ii], " (", stress$lab[ii], ")"))
-    if(n_distinct(olink_qns[[stress$lab[ii]]]) == 2) {
+      ggtitle(paste0(qsets$stress$desc[ii], " (", qsets$stress$lab[ii], ")"))
+    if(n_distinct(olink_qns[[qsets$stress$lab[ii]]]) == 2) {
       print(p + geom_boxplot() + add_n())
     } else {
       print(p + geom_point())
@@ -781,18 +813,10 @@ assoc_res$hearing_problem %>%
 
 ### Assoc. with tinnitus subtypes (`TSCHQ_??`)
 
-```{r}
-# Find sub-type variables 
-tinnitus_subtypes <- list(
-  cat = c("TSCHQ_5", "TSCHQ_7", "TSCHQ_8", "TSCHQ_9", "TSCHQ_15", "TSCHQ_18", "TSCHQ_22", "TSCHQ_24", "TSCHQ_27"),
-  qty = c("TSCHQ_12", "TSCHQ_16", "TSCHQ_17")
-)
-```
-
 #### Categorical variables
 
-- `r Words(length(tinnitus_subtypes$cat))` categorical variables were tested (
-`r knitr::combine_words(tinnitus_subtypes$cat, before = '\x60')`).
+- `r Words(length(qsets$tinnitus_subtypes$cat))` categorical variables were tested (
+`r knitr::combine_words(qsets$tinnitus_subtypes$cat, before = '\x60')`).
 
 ##### Statistical models for association tests
 
@@ -812,7 +836,7 @@ When the _p_ value is significant, the association detected by ANOVA was shown s
 ```{r assoc_res.overall.subtype.cat, purl=TRUE, cache=TRUE}
 # Association tests
 assoc_res$subtype$cat <- sapply(
-  tinnitus_subtypes$cat,
+  qsets$tinnitus_subtypes$cat,
   function(ii) {
     f <- formula(paste("NPX ~ Age + Sex + Smoking + `Sample Lab` +", ii))
     f_b <- formula(paste("NPX ~", ii))  # formula for Bartlett test
@@ -837,7 +861,7 @@ is_hit <- map(assoc_res$subtype$cat, ~ {.x$qval < 0.05})
 * `r Words(sum(unlist(is_hit)))` proteins were significantly associated with one of those categorical sub-type variables (_q_ value < 0.05).
 
 ```{r}
-for(ii in tinnitus_subtypes$cat) {
+for(ii in qsets$tinnitus_subtypes$cat) {
   if(any(is_hit[[ii]])) {
     qn <- paste(ii, ":", codes$Label[codes$Variable == ii])
     
@@ -865,8 +889,8 @@ for(ii in tinnitus_subtypes$cat) {
 
 #### Continuous or two-group variables
 
-- `r Words(length(tinnitus_subtypes$qty))` continuous variables were tested (
-`r knitr::combine_words(tinnitus_subtypes$qty, before = '\x60')`).
+- `r Words(length(qsets$tinnitus_subtypes$qty))` continuous variables were tested (
+`r knitr::combine_words(qsets$tinnitus_subtypes$qty, before = '\x60')`).
 
 ##### Statistical models for association tests
 
@@ -878,7 +902,7 @@ including age, sex, smoking, and sample lab.
 ```{r assoc_res.overall.subtype.qty, purl=TRUE, cache=TRUE}
 # Association tests
 assoc_res$subtype$qty <- sapply(
-  tinnitus_subtypes$qty,
+  qsets$tinnitus_subtypes$qty,
   function(ii) {
     f <- formula(paste("NPX ~", ii, "+ Age + Sex + Smoking + `Sample Lab`"))
     olink_qns %>%
@@ -901,7 +925,7 @@ is_hit <- map(assoc_res$subtype$qty, ~ {.x$qval < 0.05})
 * `r Words(sum(unlist(is_hit)))` protein was significantly associated with one of those continuous sub-type variables (_q_ value < 0.05).
 
 ```{r}
-for(ii in tinnitus_subtypes$qty) {
+for(ii in qsets$tinnitus_subtypes$qty) {
   if(any(is_hit[[ii]])) {
     qn <- paste(ii, ":", codes$Label[codes$Variable == ii])
     
@@ -934,17 +958,15 @@ for(ii in tinnitus_subtypes$qty) {
 ##### Data source and statistical models
 
 ```{r}
-# find THI scores
-tinnitus_handi_inv <- Filter(function(x) grepl("^THI_", x), names(qns))
 # Confirm every THI score is ordered
-stopifnot(all(map_lgl(tinnitus_handi_inv, ~ is.ordered(qns[[.x]]))))
+stopifnot(all(map_lgl(qsets$THI_scores, ~ is.ordered(qns[[.x]]))))
 # Confirm the number of included samples is constant
 tmp <- drop_na(qns, Smoking)
-tmp <- map_int(tinnitus_handi_inv, ~ sum(!is.na(tmp[[.x]])))
+tmp <- map_int(qsets$THI_scores, ~ sum(!is.na(tmp[[.x]])))
 stopifnot(all(tmp == tmp[1]))
 ```
 
-- There were `r length(tinnitus_handi_inv)` tinnitus handicap inventory (THI) variables, `THI_??`.
+- There were `r length(qsets$THI_scores)` tinnitus handicap inventory (THI) variables, `THI_??`.
 
 - Every THI score was coded as ordered categories (e.g. `Yes`, `Sometimes` and `No`).
 
@@ -953,9 +975,9 @@ including age, sex, smoking, and sample lab.
 
 - `lm(Protein ~ (a THI score) + age + sex + smoking + sample lab)`
 
-- The _p_ values were adjusted for all tested proteins and all `r length(tinnitus_handi_inv)` THI variables.
+- The _p_ values were adjusted for all tested proteins and all `r length(qsets$THI_scores)` THI variables.
 
-- Due to missing information, `r nrow(drop_na(qns, Smoking, all_of(tinnitus_handi_inv)))` samples were analyzed here.
+- Due to missing information, `r nrow(drop_na(qns, Smoking, all_of(qsets$THI_scores)))` samples were analyzed here.
 
 ```{r assoc_res.overall.THI_scores, purl=TRUE, cache=TRUE}
 # backend for parallel computing
@@ -963,7 +985,7 @@ doParallel::registerDoParallel(cores = parallel::detectCores() - 1)
   
 # Association tests
 assoc_res$THI_scores <- foreach(
-  ii = iterators::iter(tinnitus_handi_inv),
+  ii = iterators::iter(qsets$THI_scores),
   .inorder = FALSE,
   .packages = c("dplyr", "purrr", "tidyr", "tibble")
 ) %dopar% {

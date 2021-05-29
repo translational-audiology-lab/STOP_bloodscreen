@@ -9,7 +9,6 @@ params:
   staff_name: "Mun-Gwan Hong"
   staff_mail: "mungwan.hong@nbis.se"
   staff_web: "https://nbis.se/about/staff/mungwan-hong/"
-  panels: ["Inflammation", "Target 96 Neurology"]
 title: "`r params$project_title`"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
@@ -42,8 +41,6 @@ knitr::opts_chunk$set(
   results = "asis",   # for HTML
   message = FALSE,    # no message from the code
   warning = FALSE,    # no warning from the code
-	cache.path = "../cache/",   # cache the results from heavy analyses
-  cache.extra = params$panels,
   fig.width  = 8,
   fig.height = 6,
 	eval.after = "fig.cap",    # to add fig. caption within the chunk

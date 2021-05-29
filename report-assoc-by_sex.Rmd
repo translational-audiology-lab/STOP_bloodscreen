@@ -1,6 +1,4 @@
 ---
-params:
-  panels: ["Inflammation", "Target 96 Neurology"]
 title: "`r paste('Association test -', stringr::str_to_title(sex))`"
 author: "Mun-Gwan Hong"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
@@ -20,7 +18,9 @@ knit: (function(inputFile, encoding) {
 ---
 
 ```{r, echo=FALSE, include=FALSE}
-if(!exists("sex")) sex <- "female" # no passover then 'female' as default
+# the defaults, when no passover
+if(!exists("sex")) sex <- "female"
+if(!exists("panels")) panels <- c("Inflammation", "Neurology")
 
 ## Chunk hooks
 knitr::knit_hooks$set(
@@ -33,7 +33,7 @@ knitr::opts_chunk$set(
   message = FALSE,    # no message from the code
   warning = FALSE,    # no warning from the code
 	cache.path = "../cache/",   # cache the results from heavy analyses
-  cache.extra = c(params$panels, sex),
+  cache.extra = c(panels, sex),
   fig.width  = 8,
   fig.height = 6,
 	eval.after = "fig.cap",    # to add fig. caption within the chunk
@@ -66,7 +66,7 @@ fn <- list(
 	),
   o = list(         # intermediate results
     res = paste0("../cache/assoc-", sex, "-", 
-                 paste(params$panels, collapse = ","), ".RData")
+                 paste(panels, collapse = ","), ".RData")
   )
 )
 # Brief check if all files exist
@@ -90,7 +90,7 @@ olink <- olink %>%
 
 ####### < SELECTED PANELS > #######
 olink <- olink %>% 
-  filter(Panel %in% params$panels)
+  filter(Panel %in% panels)
 
 
 
@@ -110,7 +110,7 @@ n_prots <- n_distinct(proteins$OlinkID)
 assoc_res <- list()
 ```
 
-All analyses below were limited to **`r sex`** participants and Olink **`r params$panels`** panel(s).
+All analyses below were limited to **`r sex`** participants and Olink **`r panels`** panel(s).
 
 
 ## Background
@@ -132,11 +132,23 @@ olink_qns %>%
 
 ### Prior observation about on relevant variables
 
+#### Body-mass-index (BMI)
+
+BMI is **missing** for a relatively large proportion of participants
+(N = `r sum(is.na(qns$BMI))`, 
+`r round(sum(is.na(qns$BMI)) / dim(qns)[1L] * 100, 1)`%).
+
 #### Smoking
 
-The smoking status is **missing** for a relatively large proportion of participants
+```{r}
+# confirm the statement below
+stopifnot(all(is.na(qns$BMI[is.na(qns$Smoking)])))
+```
+
+Smoking status is **missing** for a relatively large proportion of participants
 (N = `r sum(is.na(qns$Smoking))`, 
 `r round(sum(is.na(qns$Smoking)) / dim(qns)[1L] * 100, 1)`%).
+For all of them, BMI was also missing.
 
 #### Hearing problem
 
@@ -150,6 +162,7 @@ Among them, only `r sum(is.na(qns$TSCHQ_26) & is.na(qns$Smoking))` participants'
 cvar_test <- tribble(
   ~rhs,                 ~test,
   "Age",                "lm",
+  "BMI",                "lm",
   "Smoking",            "aov",
   "`Sample Lab`",       "aov",
   "Age + `Sample Lab`", "aov",
@@ -190,7 +203,7 @@ assoc_res$covariates <- lapply(
 
 `r Words(n_distinct(cvar_test$test_for))` potential covariates were tested for the association with individual protein profiles.
 Several proteins were found correlated with some of those covariates.
-Especially, quite a large number of proteins were significantly associated with **age and sample lab**. 
+Especially, quite a large number of proteins were significantly associated with **age, sex, BMI and sample lab**. 
 So, those variables were included in most of following analyses as covariates.
 
 Summary table is shown below.
@@ -231,6 +244,18 @@ hits$n_all <- nrow(bind_rows(hits))
 
 `r Words(hits$n_all)` proteins were found correlated with age by linear regression.
 Among them, the profiles of `r nrow(hits$inc)` proteins (`r round(nrow(hits$inc) / hits$n_all * 100, 1)`%) increased as age advances, 
+
+#### BMI
+
+```{r}
+# increasing/decreasing proteins as BMI
+hits <- filter(assoc_res$covariates$BMI, adj.P < 0.05) %>%
+  split(., recode(sign(.$Estimate), "1" = "inc", "-1" = "dec"))
+hits$n_all <- nrow(bind_rows(hits))
+```
+
+`r Words(hits$n_all)` proteins were found correlated with BMI by linear regression.
+Among them, the profiles of `r nrow(hits$inc)` proteins (`r round(nrow(hits$inc) / hits$n_all * 100, 1)`%) increased as BMI, 
 
 #### Smoking (`A7`)
 

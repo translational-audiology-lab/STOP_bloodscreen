@@ -54,6 +54,7 @@ olink1 <- olink0 %>%
   mutate(
     PlateID = str_remove(PlateID, "^Plate") %>% as.integer,
     Panel = str_remove(Panel, "^Olink ") %>% 
+      str_remove("Target 96 ") %>% 
       str_to_title()
   )
 
