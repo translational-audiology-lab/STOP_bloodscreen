@@ -147,7 +147,7 @@ proper order.
 
 The master script for computationally heavy analyses.
 
-* `anal-lm_resample_t.Rmd` : T statistics from resampling
+* `anal-lm_resample_t.R` : T statistics from resampling
 
 
 ### Report writing

@@ -7,5 +7,5 @@
 # -----------------------------------------------------------------------------#
 
 # T statistics from resampling
-rmarkdown::render("anal-lm_resample_t.Rmd")
+source("anal-lm_resample_t.R")
 
