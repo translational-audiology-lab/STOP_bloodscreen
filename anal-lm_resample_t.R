@@ -47,12 +47,13 @@ stopifnot(all(file.exists(unlist(fn$i), dirname(unlist(fn$o)))))
 #' @param c_data clinical data 
 #' @param count number of iterations
 #'
-#' @return a list of the tibbles of T statistics in each resampling. Each
-#'   element of the list is a term in the linear regression model. The first
-#'   column of the tibble has the OlinkIDs.
+#' @return the tibble of T statistics for the first term in `rhs` from
+#'   resampling. The first column of the tibble has the OlinkIDs. This is to be
+#'   used by [lm_prot_padj_by_max_t()]
 #'
 #' @import parallel foreach doSNOW iterators digest progress
 #'
+#' @seealso [lm_prot_padj_by_max_t()]
 #' @references 
 #' Westfall and Young's max-T method (1993)
 #' \url{https://fdhidalgo.github.io/multitestr/articles/multitestr.html#stepdown}
@@ -62,7 +63,7 @@ lm_prot_resample_t <- function(rhs, olinkdf, c_data, count = NULL) {
   stopifnot(anyDuplicated(c_data$SampleID) == 0)
   
   # progress bar
-  cat(">", rhs, "\n")
+  cat("~", rhs, "\n")
   pb <- txtProgressBar(max = count, style = 3)
   progress <- function(n) setTxtProgressBar(pb, n)
   opts <- list(progress = progress)
@@ -73,6 +74,7 @@ lm_prot_resample_t <- function(rhs, olinkdf, c_data, count = NULL) {
     select(-SampleID)   # no need of SampleID
   # proteins
   prots <- unique(olinkdf$OlinkID)
+  names(prots) <- prots
   
   # trim, because `c_data` can be huge
   c_data <- c_data %>% 
@@ -88,6 +90,7 @@ lm_prot_resample_t <- function(rhs, olinkdf, c_data, count = NULL) {
   T_rnd <- foreach(
     # resampling
     rnd = iterators::isample(1:nrow(c_data), count = count),
+    .combine = 'cbind',
     .inorder = FALSE,
     .packages = c("dplyr", "purrr"),
     .options.snow = opts   # progress bar
@@ -96,7 +99,7 @@ lm_prot_resample_t <- function(rhs, olinkdf, c_data, count = NULL) {
     oc <- bind_cols(c_data[rnd, ], olinkdf_wide)
     
     # T-statistics from linear regression
-    map_dfr(
+    map_dbl(
       prots,
       function(ii) {
         f <- formula(paste(ii, "~", rhs))
@@ -118,7 +121,7 @@ lm_prot_resample_t <- function(rhs, olinkdf, c_data, count = NULL) {
         R <- chol2inv(Qr$qr[p1, p1, drop = FALSE])
         se <- sqrt(diag(R) * resvar)
         est <- z$coefficients
-        (est/se)[-1] # skip (intercept)
+        (est/se)[2L] # The first term only, skip (intercept)
       }
     )
   }
@@ -126,26 +129,13 @@ lm_prot_resample_t <- function(rhs, olinkdf, c_data, count = NULL) {
   close(pb)
   parallel::stopCluster(cl)
   
-  # column names to 'r0001', 'r0002', ...
-  ndigit <- nchar(format(length(T_rnd)))
-  sform <- paste0("r%0", ndigit, "d")
- 
-  terms_rhs <- names(T_rnd[[1]])   # terms in the model
-  # Transform to list of terms, where each element is a tibble of T-stat. 
-  # In the tibble, proteins are in rows and repeated runs are in columns.
-  out <- lapply(seq(terms_rhs), function(ii) {
-    map(T_rnd, ~ unname(.x[, ii])) %>% 
-      bind_cols(.name_repair = "minimal") %>% # avoid new names message
-      `colnames<-`(sprintf(sform, 1:length(T_rnd))) %>% 
-      mutate(OlinkID = prots, .before = 1)
-  }) %>% 
-    `names<-`(terms_rhs)
   # to make sure the same input
-  attr(out, "key") <- list(
+  attr(T_rnd, "key") <- list(
     rhs = rhs,
-    c_data = digest::digest(c_data)
+    c_data = digest::digest(c_data),
+    olinkdf = digest::digest(olinkdf)
   )
-  out
+  T_rnd
 }
 
 
@@ -157,7 +147,7 @@ load(fn$i$c02)  # clinical information
 stopifnot(all(qns$SampleID %in% olink$SampleID))
 
 ## CONSTANT
-N_PERMUTATION = 100
+N_PERMUTATION = 10000
 
 
 # Models to test ----------------------------------------------------------
@@ -176,8 +166,11 @@ rhs <- c(
   # Adjusted for stress related variables
   paste("Tinnitus + Age + Sex + BMI + Smoking + `Sample Lab` +", qsets$stress$with_q),
   paste("Tinnitus + Age + Sex + BMI + Smoking + `Sample Lab` +", stress_all),
+  # hearing problem
   "TSCHQ_26 + Age + Sex + `Sample Lab`",
-  "TSCHQ_26 + Age + Sex + BMI + Smoking + `Sample Lab`"
+  "TSCHQ_26 + Age + Sex + BMI + Smoking + `Sample Lab`",
+  # stress
+  paste(qsets$stress$with_q, "+ Tinnitus + Age + Sex + BMI + Smoking + `Sample Lab`")
 ) %>% 
   `names<-`(., .)   # to keep the names after `map` or `lapply`
 
