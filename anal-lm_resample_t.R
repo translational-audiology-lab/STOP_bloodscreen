@@ -10,10 +10,7 @@ rm(list = ls())
 # Please note that some functions are called directly from the package using
 # double-colon '::' or triple-colon ':::' to make the source clearer.
 library(tidyverse)
-library(parallel)
-library(foreach)  # %dopar%, foreach
-library(doSNOW)
-library(iterators)
+library(doSNOW)  # requires foreach, iterators, snow
 library(progress)
 
 ## File names
@@ -51,7 +48,7 @@ stopifnot(all(file.exists(unlist(fn$i), dirname(unlist(fn$o)))))
 #'   resampling. The first column of the tibble has the OlinkIDs. This is to be
 #'   used by [lm_prot_padj_by_max_t()]
 #'
-#' @import parallel foreach doSNOW iterators digest progress
+#' @import parallel foreach doSNOW snow iterators digest progress
 #'
 #' @seealso [lm_prot_padj_by_max_t()]
 #' @references 
@@ -82,8 +79,8 @@ lm_prot_resample_t <- function(rhs, olinkdf, c_data, count = NULL) {
     droplevels()
 
   # backend for parallel computing
-  n_cores <- parallel::detectCores()
-  cl <- parallel::makeCluster(n_cores)
+  n_cores <- parallel::detectCores() - 1
+  cl <- snow::makeCluster(n_cores)
   doSNOW::registerDoSNOW(cl)
 
   # T-statistics collected during resampling
@@ -127,7 +124,7 @@ lm_prot_resample_t <- function(rhs, olinkdf, c_data, count = NULL) {
   }
   # cluster close
   close(pb)
-  parallel::stopCluster(cl)
+  snow::stopCluster(cl)
   
   # to make sure the same input
   attr(T_rnd, "key") <- list(
@@ -196,7 +193,10 @@ for(ipanel in names(fn$o$perm_t)) {
     rhs,
     ~ lm_prot_resample_t(.x, olinkdf, c_data, count = N_PERMUTATION)
   )
+  # Save
+  save(resample_t_res, file = fn$o$perm_t[[ipanel]])
   
+    
   # Non hearing-aid users
   cat("\n>>>", ipanel, ": Non hearing-aid users\n\n")
   qns_sub <- filter(c_data, non_aids_analysis)
