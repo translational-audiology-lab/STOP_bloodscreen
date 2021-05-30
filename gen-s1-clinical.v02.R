@@ -128,7 +128,7 @@ qsets$tinnitus_subtypes <- list(
 )
 
 # find Tinnitus Handicap Inventory scores
-qsets$tinnitus_handi_inv <- Filter(function(x) grepl("^THI_", x), names(qns))
+qsets$THI_scores <- Filter(function(x) grepl("^THI_", x), names(qns))
 
 
 # Save --------------------------------------------------------------------
