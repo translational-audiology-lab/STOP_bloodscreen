@@ -25,7 +25,7 @@ fn <- list(
   ),
   o = list(                               #  output
     perm_t = list(
-      all_panels = "../cache/lm_resample_t.RData",
+      all_panels = "../cache/lm_resample_t-Inflammation_Neurology.RData",
       Inflammation = "../cache/lm_resample_t-Inflammation.RData",
       Neurology = "../cache/lm_resample_t-Neurology.RData"
     )
@@ -50,32 +50,37 @@ stopifnot(all(file.exists(unlist(fn$i), dirname(unlist(fn$o)))))
 #' \dontrun{
 #' microbenchmark::microbenchmark(
 #'   lm = coef(summary(lm(Sepal.Length ~ Species, iris)))[, "t value"],
-#'   lm_t_values = lm_t_values(Sepal.Length ~ Species, iris),
+#'   lm_t_values = {
+#'     x <- model.matrix(~ Species, iris)
+#'     setNames(lm_t_values3(x, iris$Sepal.Length), colnames(x))
+#'   },
 #'   check = 'equal'
 #' )
 #' }
 # ------------------
 
-lm_t_values <- function(formula, data) {
+lm_t_values <- function(x, y) {
+  ok <- complete.cases(x, y)
+  y <- y[ok]
+  x <- x[ok, ]
   # decompose `lm` to speed up
-  mf <- model.frame(formula, data, na.action = na.omit)
-  y <- model.response(mf, "numeric")
-  x <- model.matrix(formula, mf)
-  z <- lm.fit(x = x, y = y)
+  z <- .lm.fit(x = x, y = y)
+  n <- nrow(x)
   
-  # decompose `summary.lm` to speed up
+  # decompose `lm.fit`, `summary.lm` to speed up
   p <- z$rank
   r <- z$residuals
   rss <- sum(r^2)
-  rdf <- z$df.residual
+  rdf <- n - p
   resvar <- rss/rdf
-  Qr <- qr(x)
+  Qr <- z$qr
   p1 <- 1L:p
-  R <- chol2inv(Qr$qr[p1, p1, drop = FALSE])
+  R <- chol2inv(Qr[p1, p1, drop = FALSE])
   se <- sqrt(diag(R) * resvar)
   est <- z$coefficients
   est/se
 }
+
 
 
 # ------------------
@@ -106,32 +111,31 @@ lm_prot_resample_t <- function(rhs, olinkdf, c_data, count = NULL) {
   # make sure unique sample IDs in the clinical data table
   stopifnot(anyDuplicated(c_data$SampleID) == 0)
   cat("~", rhs, "\n")  # progress
-
+  
   # wide form
   olinkdf_wide0 <- olinkdf %>% 
     drop_na(NPX) %>% 
     pivot_wider(SampleID, names_from = OlinkID, values_from = NPX) 
   
   # trim, because `c_data` can be hugely wide
-  terms_in_rhs <- all.vars(formula(paste("~", rhs)))
+  f_rhs <- as.formula(paste("~", rhs))
   c_data <- c_data %>% 
     # at least one protein data exists
     filter(SampleID %in% olinkdf_wide0$SampleID) %>% 
-    select(SampleID, all_of(terms_in_rhs)) %>% 
+    select(SampleID, all_of(all.vars(f_rhs))) %>% 
     drop_na() %>%      # only complete cases
     droplevels()
-
+  
   # clinical info complete cases only
   olinkdf_wide <- olinkdf_wide0 %>% 
-    filter(SampleID %in% c_data$SampleID) %>% 
-    select(-SampleID)   # no need of SampleID
-  
-  # proteins
-  prots <- setNames(nm = unique(olinkdf$OlinkID))
+    filter(SampleID %in% c_data$SampleID)
 
   # backend for parallel computing
   doParallel::registerDoParallel(cores = parallel::detectCores() - 1)
 
+  prots <- setNames(nm = unique(olinkdf$OlinkID))   # proteins
+  X0 <- model.matrix(f_rhs, c_data)    # IV matrix
+  
   # T-statistics collected during resampling
   T_rnd <- foreach(
     # resampling
@@ -140,12 +144,12 @@ lm_prot_resample_t <- function(rhs, olinkdf, c_data, count = NULL) {
     .inorder = FALSE,
     .packages = c("dplyr", "purrr")
   ) %dopar% {
-    # Olink + randomized clinical data
-    oc <- bind_cols(c_data[rnd, ], olinkdf_wide)
+    # permuted clinical data
+    X <- X0[rnd, , drop = FALSE]
     # T-statistics from linear regression, the 1st term only
-    map_dbl(prots, ~ lm_t_values(as.formula(paste(.x, "~", rhs)), oc)[2L])
+    map_dbl(prots, ~ lm_t_values(X, olinkdf_wide[[.x]])[2L])
   }
-
+  
   # to make sure the same input
   attr(T_rnd, "key") <- list(
     rhs = rhs,
