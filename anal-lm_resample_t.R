@@ -168,6 +168,8 @@ load(fn$i$c02)  # clinical information
 # confirm no samples in `qns` without proteomic data
 stopifnot(all(qns$SampleID %in% olink$SampleID))
 
+lockBinding("olink", .GlobalEnv)
+lockBinding("qns", .GlobalEnv)
 
 # Models to test ----------------------------------------------------------
 
@@ -195,6 +197,7 @@ rhs <- c(
 
 
 # Run by panels -----------------------------------------------------------
+set.seed(2021)
 
 for(ipanel in names(fn$o$perm_t)) {
   if(ipanel == "all_panels") {

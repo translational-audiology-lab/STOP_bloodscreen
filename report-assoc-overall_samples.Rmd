@@ -20,7 +20,8 @@ knit: (function(inputFile, encoding) {
 ```{r, echo=FALSE, include=FALSE}
 # the default, when no passover
 if(!exists("panels")) panels <- c("Inflammation", "Neurology")
-cache_path <- paste(c("../cache/rmd/", panels, "-overall-"), collapse = "")
+panel_c <- paste(panels, collapse = "_")
+cache_path <- paste(c("../cache/rmd/", panel_c, "-overall-"), collapse = "")
 
 ## Chunk hooks
 knitr::knit_hooks$set(
@@ -61,11 +62,10 @@ fn <- list(
   i = list(                               # input
     olk02 = "../data/s1-olink_proteomic.v02.RData",
     c02 = "../data/s1-clinical.v02.RData",
-    perm_t = "../data/lm_resample_t.RData"
+    perm_t = paste0("../cache/lm_resample_t-", panel_c, ".RData")
 	),
   o = list(         # intermediate results
-    res = paste0("../cache/assoc-overall_samples-", 
-                 paste(panels, collapse = ","), ".RData")
+    res = paste0("../cache/assoc-", panel_c, "-overall.RData")
   )
 )
 # Brief check if all files exist
@@ -359,9 +359,11 @@ hits <- filter(assoc_res$covariates[["`Collection Date`"]], P_bonf < 0.05)
 `r Words(nrow(hits))` protein was found correlated with sample collection date or the age of samples by linear regression.
 
 ```{r, fig.width=4, fig.height=3}
-show_hit_table(hits)
-show_examples(hits$OlinkID, `Collection Date`, olink_qns) +
-  geom_point()
+if(nrow(hits) > 0) {
+  show_hit_table(hits)
+  show_examples(hits$OlinkID, `Collection Date`, olink_qns) +
+    geom_point()
+}
 ```
 
 #### Assay Plate
@@ -916,6 +918,9 @@ if(any(is_hit)) {
     out_df, Protein, Term, "Trend Yes-Sometimes-No" = Estimate,
     "_q_ value" = qval, n = 3, caption = "THI scores - Top 3"
   ))
+  for(ii in unique(out_df$Term[order(out_df$Pval)][1:3])) {
+    cat("*", ii, ":", codes$Label[codes$Variable == ii], "\n") 
+  }
 }
 ```
 

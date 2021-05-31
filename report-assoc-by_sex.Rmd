@@ -21,7 +21,8 @@ knit: (function(inputFile, encoding) {
 # the defaults, when no passover
 if(!exists("sex")) sex <- "female"
 if(!exists("panels")) panels <- c("Inflammation", "Neurology")
-cache_path <- paste(c("../cache/rmd/", panels, "-", sex, "-"), collapse = "")
+panel_c <- paste(panels, collapse = "_")
+cache_path <- paste(c("../cache/rmd/", panel_c, "-", sex, "-"), collapse = "")
 
 ## Chunk hooks
 knitr::knit_hooks$set(
@@ -62,11 +63,10 @@ fn <- list(
   i = list(                               # input
     olk02 = "../data/s1-olink_proteomic.v02.RData",
     c02 = "../data/s1-clinical.v02.RData",
-    perm_t = "../data/lm_resample_t.RData"
+    perm_t = paste0("../cache/lm_resample_t-", panel_c, ".RData")
 	),
   o = list(         # intermediate results
-    res = paste0("../cache/assoc-", sex, "-", 
-                 paste(panels, collapse = ","), ".RData")
+    res = paste0("../cache/assoc-", panel_c, "-", sex, ".RData")
   )
 )
 # Brief check if all files exist
@@ -264,8 +264,9 @@ hits$intx <- hits[["Age + Sample Lab"]] %>%
 
 `r Words(nrow(hits[["Sample Lab"]]))` proteins were found different across sample labs by ANOVA. 
 In order to take into account dissimilar age distribution between sample labs, the association was also tested after adjusting for age.
-`r Words(nrow(hits[["Age + Sample Lab"]]))` proteins were found after the adjustment.
-Among them, `r nrow(hits$intx)` proteins were in common, the results of which for the adjusted model are listed below.
+`r Words(nrow(hits[["Age + Sample Lab"]]))` proteins were found after the adjustment,
+which were `r knitr::combine_words(hits[["Age + Sample Lab"]]$Assay, before = "\x60")`.
+Among them, `r nrow(hits$intx)` proteins were in common.
 
 #### Collection Date (age of sample)
 
@@ -522,7 +523,13 @@ is_hit <- map(assoc_res$perm_t[rhss], ~ (.x$P_perm < 0.05))
 ```{r, fig.width=5, fig.height=4}
 for(ii in 1:nrow(ss)) {
   p <- assoc_res$perm_t[[rhss[ii]]] %>% 
-    mutate(qval = qvalue::qvalue(Pval)$qvalues) %>% 
+    mutate(
+      qval = tryCatch(
+        qvalue::qvalue(Pval),
+        # ERROR: maximum p-value is smaller than lambda range.
+        error = function(cond) qvalue::qvalue_truncp(Pval)
+      )$qvalues
+    ) %>% 
     show_res_p(
       Protein, Estimate, "Adj.P by perm." = P_perm, "_q_ value" = qval,
       caption = paste0(ss$desc[ii], " (", ss$lab[ii], ")")

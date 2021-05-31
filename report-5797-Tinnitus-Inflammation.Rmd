@@ -9,7 +9,7 @@ params:
   staff_name: "Mun-Gwan Hong"
   staff_mail: "mungwan.hong@nbis.se"
   staff_web: "https://nbis.se/about/staff/mungwan-hong/"
-title: "`r params$project_title`"
+title: "`r params$project_title` - Inflammation"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
   html_document:
@@ -58,15 +58,21 @@ options(knitr.duplicate.label = "allow")
  * Principal investigator: **`r params$pi_name`**
  * Organisation: **`r params$organisation`**
 
-
 # Summary
 
- * Clinical information table QC
- * Proteomic data QC
- * Overview of data after QC
- * Association test of individual proteins with various tinnitus related variables
- * Stratified analysis by sex
+<div class = "blue">
+* Association test of individual proteins with various tinnitus related variables
+    - No association test results for tinnitus reach the common threshold, adjusted _p_ value below 0.05. 
+    - `FGF-21` was marginally associated with tinnitus after adjusting for BMI or Smoking.
+    - No association was found between hearing problem and individual proteins.
+    - `ADA` was marginally associated with headache.
+    - A few proteins were found associated with tinnitus subtypes.
+    - `VEGFA` was marginally associated with THI 23 (cope with).
 
+* Stratified analysis by sex
+    - Any association with tinnitus or hearing problem was not found.
+    - A few proteins were found associated with tinnitus subtypes.
+</div>
 
 # Practical information
 
@@ -149,25 +155,7 @@ Here 548 patients and 548 controls matched for age and sex were analyzed.
 
 The website for this study : [stop.ki.se](http://stop.ki.se)
 
-# Whole samples in the study
 
-```{r child = "report-sample_info.Rmd"}
-```
-
-# QC of clinical data table
-
-```{r child = "report-QC-clinical_info.Rmd"}
-```
-
-# QC of Olink Data
-
-```{r child = "report-QC-Olink_proteomic_data.Rmd"}
-```
-
-# Overview of the data after QC
-
-```{r child = "report-overview_after_QC.Rmd"}
-```
 
 <br><br>
 
@@ -176,9 +164,7 @@ The website for this study : [stop.ki.se](http://stop.ki.se)
 # Association of individual proteins - overall samples
 
 ```{r, include=FALSE}
-# panels <- c("Inflammation", "Neurology")
 panels <- "Inflammation"
-# panels <- "Neurology"
 ```
 
 ```{r child = "report-assoc-overall_samples.Rmd"}

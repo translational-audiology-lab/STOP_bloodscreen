@@ -115,12 +115,18 @@ are ready in expected folders. The files were listed below the code lines.
 ```R
 source("master_data_generation.R")   # data generation
 source("master_heavy_analyses.R")   # data generation
-rmarkdown::render("report-5797-Tinnitus.Rmd")    # report writing
+rmarkdown::render("report-5797-Tinnitus.Rmd")    # main report
+rmarkdown::render("report-5797-Tinnitus-Inflammation.Rmd")  # Inflamation panel
+rmarkdown::render("report-5797-Tinnitus-Neurology.Rmd")     # Neurology panel
 ```
 
-
-    ../data/raw_internal/202?-??-??/
-
+```
+../data/raw_internal/20210504/All STOP questionnaire data 180118_v14_BloodAnalysis_v2.xlsx
+../data/raw_internal/20210505/Variable Key STOP Frågeformulär LG 2018.xls
+../data/raw_internal/20210505/Variablekey_ESITSQ.xlsx
+../data/raw_internal/20210504/cederroth_tinnitus_protein_profiling_NPX_belowLOD.xlsx
+../data/raw_internal/20210505/Tinnitus2_Cederroth_NPX_below_LOD.xlsx
+```    
 The dates in the folder names above indicate when the files were transferred to
 NBIS. If multiple versions of one file were transferred, please use the one
 delivered on that day. 
@@ -168,6 +174,16 @@ proteomic data
 overall samples
 * `report-assoc-by_sex.Rmd` : Association of individual proteins - 
 females/males only
+
+#### `report-5797-Tinnitus-Inflammation.Rmd`
+
+A main R markdown for analysis for Olink inflammation panel data. This reuses
+some the files above.
+
+#### `report-5797-Tinnitus-Neurology.Rmd`
+
+A main R markdown for analysis for Olink neurology panel data. This reuses some
+the files above.
 
 
 #### Auxiliary files

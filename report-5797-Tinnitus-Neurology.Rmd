@@ -9,7 +9,7 @@ params:
   staff_name: "Mun-Gwan Hong"
   staff_mail: "mungwan.hong@nbis.se"
   staff_web: "https://nbis.se/about/staff/mungwan-hong/"
-title: "`r params$project_title`"
+title: "`r params$project_title`\n- Neurology panel"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
   html_document:
@@ -61,11 +61,19 @@ options(knitr.duplicate.label = "allow")
 
 # Summary
 
- * Clinical information table QC
- * Proteomic data QC
- * Overview of data after QC
- * Association test of individual proteins with various tinnitus related variables
- * Stratified analysis by sex
+<div class = "blue">
+* Association test of individual proteins with various tinnitus related variables
+    - No proten was significantly associated with tinnitus. Adjusted _p_ values were close to 1. 
+    - `FLRT2` was marginally associated with anxiety. 
+    - No association was observed between hearing problem and individual proteins.
+    - A few proteins were significantly associated with tinnitus subtypes.
+    
+* Stratified analysis by sex
+    - Association with tinnitus or hearing problem was not found.
+    - `FLRT2` was associated with stress and anxiety in females.
+    - `PLXNB1` was found marginally correlated with hyperacusis in males.
+    - A few proteins were significantly associated with tinnitus subtypes.
+</div>
 
 
 # Practical information
@@ -149,26 +157,6 @@ Here 548 patients and 548 controls matched for age and sex were analyzed.
 
 The website for this study : [stop.ki.se](http://stop.ki.se)
 
-# Whole samples in the study
-
-```{r child = "report-sample_info.Rmd"}
-```
-
-# QC of clinical data table
-
-```{r child = "report-QC-clinical_info.Rmd"}
-```
-
-# QC of Olink Data
-
-```{r child = "report-QC-Olink_proteomic_data.Rmd"}
-```
-
-# Overview of the data after QC
-
-```{r child = "report-overview_after_QC.Rmd"}
-```
-
 <br><br>
 
 ----------------------------
@@ -176,9 +164,7 @@ The website for this study : [stop.ki.se](http://stop.ki.se)
 # Association of individual proteins - overall samples
 
 ```{r, include=FALSE}
-# panels <- c("Inflammation", "Neurology")
-panels <- "Inflammation"
-# panels <- "Neurology"
+panels <- "Neurology"
 ```
 
 ```{r child = "report-assoc-overall_samples.Rmd"}
