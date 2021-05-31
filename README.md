@@ -166,20 +166,21 @@ proteomic data
 * `report-overview_after_QC.Rmd` : Overview of the data after QC
 * `report-assoc-overall_samples.Rmd` : Association of individual proteins -
 overall samples
-* `report-assoc-females.Rmd` : Association of individual proteins - females only
-* `report-assoc-males.Rmd` : Association of individual proteins - males only
+* `report-assoc-by_sex.Rmd` : Association of individual proteins - 
+females/males only
 
-
-#### Extra analyses
-
-These analyses were not included in the main report, `report.Rmd`. 
-Primary reason was that we decided to focus on different analyses.
 
 #### Auxiliary files
 
 * `styles.css` : CSS style, used by Rmarkdown (`.Rmd`) files for reports
 * `utils.R` : A collection of useful R functions
+* `anal-assoc_protein-utils.R` : Functions used in the reports, mainly for
+association tests
 * `citations_in_report.bib` : Bibliography for the reports
 
-### Plots
+### Extraction
+
+#### Cleaned data
+
+* `export_clean_data.R` : cleaned clinical info + proteomic data
 

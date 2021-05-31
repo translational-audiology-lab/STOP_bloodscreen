@@ -204,4 +204,5 @@ together with tidyverse (v. `r packageVersion("tidyverse")`) package.
 sessionInfo()
 ```
 
+## References
 

@@ -6,12 +6,16 @@
 # -----------------------------------------------------------------------------#
 rm(list = ls())
 
+## CONSTANT
+N_PERMUTATION = 10000
+
+
 ## Pre-loaded packages
 # Please note that some functions are called directly from the package using
 # double-colon '::' or triple-colon ':::' to make the source clearer.
 library(tidyverse)
-library(doSNOW)  # requires foreach, iterators, snow
-library(progress)
+library(foreach)  # %dopar% foreach
+library(doParallel)
 
 ## File names
 fn <- list(
@@ -31,8 +35,50 @@ fn <- list(
 stopifnot(all(file.exists(unlist(fn$i), dirname(unlist(fn$o)))))
 
 
-# Function for resampling -------------------------------------------------
+# Functions for resampling ------------------------------------------------
 
+# ------------------
+#' Get T stat only from [lm()]
+#' 
+#' This is faster than `coef(summary(lm()))` by skipping unnecessary steps and
+#' output
+#'
+#' @param formula,data same as [lm()]
+#' @return a vector of T values
+#' 
+#' @examples
+#' \dontrun{
+#' microbenchmark::microbenchmark(
+#'   lm = coef(summary(lm(Sepal.Length ~ Species, iris)))[, "t value"],
+#'   lm_t_values = lm_t_values(Sepal.Length ~ Species, iris),
+#'   check = 'equal'
+#' )
+#' }
+# ------------------
+
+lm_t_values <- function(formula, data) {
+  # decompose `lm` to speed up
+  mf <- model.frame(formula, data, na.action = na.omit)
+  y <- model.response(mf, "numeric")
+  x <- model.matrix(formula, mf)
+  z <- lm.fit(x = x, y = y)
+  
+  # decompose `summary.lm` to speed up
+  p <- z$rank
+  r <- z$residuals
+  rss <- sum(r^2)
+  rdf <- z$df.residual
+  resvar <- rss/rdf
+  Qr <- qr(x)
+  p1 <- 1L:p
+  R <- chol2inv(Qr$qr[p1, p1, drop = FALSE])
+  se <- sqrt(diag(R) * resvar)
+  est <- z$coefficients
+  est/se
+}
+
+
+# ------------------
 #' Collect T from resampling
 #' 
 #' This is for adjusting P-value by max-T resampling-based step-down procedure.
@@ -48,40 +94,43 @@ stopifnot(all(file.exists(unlist(fn$i), dirname(unlist(fn$o)))))
 #'   resampling. The first column of the tibble has the OlinkIDs. This is to be
 #'   used by [lm_prot_padj_by_max_t()]
 #'
-#' @import parallel foreach doSNOW snow iterators digest progress
+#' @import parallel foreach doParallel iterators digest
 #'
 #' @seealso [lm_prot_padj_by_max_t()]
 #' @references 
 #' Westfall and Young's max-T method (1993)
 #' \url{https://fdhidalgo.github.io/multitestr/articles/multitestr.html#stepdown}
+# ------------------
 
 lm_prot_resample_t <- function(rhs, olinkdf, c_data, count = NULL) {
   # make sure unique sample IDs in the clinical data table
   stopifnot(anyDuplicated(c_data$SampleID) == 0)
-  
-  # progress bar
-  cat("~", rhs, "\n")
-  pb <- txtProgressBar(max = count, style = 3)
-  progress <- function(n) setTxtProgressBar(pb, n)
-  opts <- list(progress = progress)
-  
+  cat("~", rhs, "\n")  # progress
+
   # wide form
-  olinkdf_wide <- olinkdf %>% 
-    pivot_wider(SampleID, names_from = OlinkID, values_from = NPX) %>% 
-    select(-SampleID)   # no need of SampleID
-  # proteins
-  prots <- unique(olinkdf$OlinkID)
-  names(prots) <- prots
+  olinkdf_wide0 <- olinkdf %>% 
+    drop_na(NPX) %>% 
+    pivot_wider(SampleID, names_from = OlinkID, values_from = NPX) 
   
-  # trim, because `c_data` can be huge
+  # trim, because `c_data` can be hugely wide
+  terms_in_rhs <- all.vars(formula(paste("~", rhs)))
   c_data <- c_data %>% 
-    select(SampleID, all_of(all.vars(formula(paste("~", rhs))))) %>% 
+    # at least one protein data exists
+    filter(SampleID %in% olinkdf_wide0$SampleID) %>% 
+    select(SampleID, all_of(terms_in_rhs)) %>% 
+    drop_na() %>%      # only complete cases
     droplevels()
 
+  # clinical info complete cases only
+  olinkdf_wide <- olinkdf_wide0 %>% 
+    filter(SampleID %in% c_data$SampleID) %>% 
+    select(-SampleID)   # no need of SampleID
+  
+  # proteins
+  prots <- setNames(nm = unique(olinkdf$OlinkID))
+
   # backend for parallel computing
-  n_cores <- parallel::detectCores() - 1
-  cl <- snow::makeCluster(n_cores)
-  doSNOW::registerDoSNOW(cl)
+  doParallel::registerDoParallel(cores = parallel::detectCores() - 1)
 
   # T-statistics collected during resampling
   T_rnd <- foreach(
@@ -89,48 +138,20 @@ lm_prot_resample_t <- function(rhs, olinkdf, c_data, count = NULL) {
     rnd = iterators::isample(1:nrow(c_data), count = count),
     .combine = 'cbind',
     .inorder = FALSE,
-    .packages = c("dplyr", "purrr"),
-    .options.snow = opts   # progress bar
+    .packages = c("dplyr", "purrr")
   ) %dopar% {
     # Olink + randomized clinical data
     oc <- bind_cols(c_data[rnd, ], olinkdf_wide)
-    
-    # T-statistics from linear regression
-    map_dbl(
-      prots,
-      function(ii) {
-        f <- formula(paste(ii, "~", rhs))
-        
-        # decompose `lm` to speed up
-        mf <- model.frame(f, oc, na.action = na.omit)
-        y <- model.response(mf, "numeric")
-        x <- model.matrix(f, mf)
-        z <- lm.fit(x = x, y = y)
-        
-        # decompose `summary.lm` to speed up
-        p <- z$rank
-        r <- z$residuals
-        rss <- sum(r^2)
-        rdf <- z$df.residual
-        resvar <- rss/rdf
-        Qr <- qr(x)
-        p1 <- 1L:p
-        R <- chol2inv(Qr$qr[p1, p1, drop = FALSE])
-        se <- sqrt(diag(R) * resvar)
-        est <- z$coefficients
-        (est/se)[2L] # The first term only, skip (intercept)
-      }
-    )
+    # T-statistics from linear regression, the 1st term only
+    map_dbl(prots, ~ lm_t_values(as.formula(paste(.x, "~", rhs)), oc)[2L])
   }
-  # cluster close
-  close(pb)
-  snow::stopCluster(cl)
-  
+
   # to make sure the same input
   attr(T_rnd, "key") <- list(
     rhs = rhs,
     c_data = digest::digest(c_data),
-    olinkdf = digest::digest(olinkdf)
+    olinkdf = digest::digest(olinkdf),
+    dim = list(c_data = dim(c_data), olinkdf = dim(olinkdf))
   )
   T_rnd
 }
@@ -142,9 +163,6 @@ load(fn$i$olk02) # proteomic data
 load(fn$i$c02)  # clinical information
 # confirm no samples in `qns` without proteomic data
 stopifnot(all(qns$SampleID %in% olink$SampleID))
-
-## CONSTANT
-N_PERMUTATION = 10000
 
 
 # Models to test ----------------------------------------------------------
@@ -169,7 +187,7 @@ rhs <- c(
   # stress
   paste(qsets$stress$with_q, "+ Tinnitus + Age + Sex + BMI + Smoking + `Sample Lab`")
 ) %>% 
-  `names<-`(., .)   # to keep the names after `map` or `lapply`
+  setNames(nm = .)   # to keep the names after `map` or `lapply`
 
 
 # Run by panels -----------------------------------------------------------
@@ -202,11 +220,10 @@ for(ipanel in names(fn$o$perm_t)) {
   qns_sub <- filter(c_data, non_aids_analysis)
   olink_sub <- filter(olinkdf, SampleID %in% qns_sub$SampleID)
   resample_t_res$non_aid_user <- map(
-    list(
+    setNames(nm = c(
       "Tinnitus + Age + Sex + `Sample Lab`",
       "Tinnitus + Age + Sex + BMI + `Sample Lab` + Smoking + TSCHQ_26"
-    ) %>%
-      `names<-`(., .),
+    )),
     ~ lm_prot_resample_t(.x, olink_sub, qns_sub, count = N_PERMUTATION)
   )
   
@@ -214,18 +231,15 @@ for(ipanel in names(fn$o$perm_t)) {
   cat("\n>>>", ipanel, ": Female\n\n")
   qns_sub <- filter(c_data, Sex == "Female")
   olink_sub <- filter(olinkdf, SampleID %in% qns_sub$SampleID)
-  resample_t_res$female <- rhs %>% 
-    str_remove(" \\+ Sex") %>%   # remove " + Sex"
-    `names<-`(., .) %>% 
+  # remove " + Sex"
+  resample_t_res$female <- setNames(nm = sub(" \\+ Sex", "", rhs)) %>% 
     map(~ lm_prot_resample_t(.x, olink_sub, qns_sub, count = N_PERMUTATION))
   
   # Male
   cat("\n>>>", ipanel, ": Male\n\n")
   qns_sub <- filter(c_data, Sex == "Male")
   olink_sub <- filter(olinkdf, SampleID %in% qns_sub$SampleID)
-  resample_t_res$male <- rhs %>% 
-    str_remove(" \\+ Sex") %>%   # remove " + Sex"
-    `names<-`(., .) %>% 
+  resample_t_res$male <- setNames(nm = sub(" \\+ Sex", "", rhs)) %>% 
     map(~ lm_prot_resample_t(.x, olink_sub, qns_sub, count = N_PERMUTATION))
 
   # Save
