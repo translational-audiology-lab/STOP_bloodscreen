@@ -23,3 +23,10 @@ tfoot {
   font-family: Helvetica, sans-serif;
 }
 
+/* highlight section */
+.blue {
+  background-color:#e6f0ff; 
+  border-radius: 5px; 
+  padding: 20px;
+}
+
