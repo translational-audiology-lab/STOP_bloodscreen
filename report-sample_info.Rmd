@@ -3,21 +3,24 @@ title: "Whole samples in the study"
 author: "Mun-Gwan Hong"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
+  pdf_document:
+    toc: true
+    toc_depth: 4
+    number_sections: true
   html_document:
-    theme: cerulean
     toc: true
     toc_float: 
       collapse : false
-    toc_depth: 3
+    toc_depth: 4
     # code_folding: hide
     number_sections: true
     css: styles.css
-# bibliography: citations_in_report.bib
+bibliography: citations_in_report.bib
 knit: (function(inputFile, encoding) {
   rmarkdown::render(inputFile, encoding= encoding, output_dir= "../reports") })
 ---
 
-```{r, echo=FALSE, include=FALSE}
+```{r setup, echo=FALSE, include=FALSE}
 ## Pre-loaded packages
 # Please note that many functions were called directly from the package using 
 # double colon '::' to make the source clearer. 
@@ -25,25 +28,30 @@ library(tidyverse)
 library(kableExtra)
 library(janitor)
 
-## Chunk hooks
 knitr::knit_hooks$set(
   optipng = knitr::hook_optipng   # Optimize PNG plots
 )
 ## Set default chunk options
 knitr::opts_chunk$set(
-	echo = FALSE,    # comment out for code_folding
+	echo = FALSE,    # comment out for html.code_folding
 	# dev = c('pdf'), fig.path = '../results/figures/', # export figures to pdf files
   results = "asis",   # for HTML
   message = FALSE,    # no message from the code
   warning = FALSE,    # no warning from the code
-	cache.path = "../cache/",   # cache the results from heavy analyses
-  fig.width  = 7,
-  fig.height = 5.5,
+  fig.width  = 8,
+  fig.height = 6,
+	dpi = 300,
+	fig.align = "center",
+	out.width = if(knitr::is_html_output()) NULL else "70%",
 	eval.after = "fig.cap",    # to add fig. caption within the chunk
-  optipng = '-o1', # '-o7 -zc9 -zm8 -zs0', # Optimize 'png' plots
+  optipng = "-o1", # "-o7 -zc9 -zm8 -zs0", # Optimize 'png' plots
 	purl = FALSE      # because most of the code are not to be extracted
 )
-options(knitr.kable.NA = '')  # NA is shown as ''
+options(
+  knitr.duplicate.label = "allow",   # avoid error from multiple usage of child
+  knitr.kable.NA = "",         # NA is shown as ""
+  knitr.table.format = if(knitr::is_html_output()) "html" else "markdown"
+)
 ```
 
 ```{r sinfo-Load data, purl=TRUE}
@@ -116,7 +124,7 @@ qns %>%
   unnest(cols= c(freq)) %>% 
   select(`Sample Lab`, Tinnitus, Male, Female, `P-value`, `Avg. Sampling Age`) %>% 
   rename_with(~ paste0(.x, footnote_marker_symbol(1)), "P-value") %>% 
-  kbl(
+  kable(
     caption = "Age and sex of the samples from each sample lab",
     escape= F
   ) %>% 

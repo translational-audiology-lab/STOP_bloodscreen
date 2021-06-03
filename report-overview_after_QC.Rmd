@@ -111,7 +111,7 @@ olink %>%
     Samples = n_distinct(SampleID),
     Proteins = n_distinct(OlinkID)
   ) %>% 
-  kbl() %>% 
+  kable() %>% 
   kable_styling(full_width = FALSE)
 ```
 
@@ -198,7 +198,7 @@ qns %>%
   unnest(cols= c(freq)) %>% 
   select(`Sample Lab`, Tinnitus, Male, Female, `P-value`, `Avg. Sampling Age`) %>% 
   rename_with(~ paste0(.x, footnote_marker_symbol(1)), "P-value") %>% 
-  kbl(
+  kable(
     caption = "Age and sex of the samples from each sample lab",
     escape= F
   ) %>% 

@@ -30,7 +30,10 @@ knitr::opts_chunk$set(
 	# dev = c('pdf'), fig.path = '../results/figures/', # export figures to pdf files
   fig.width  = 8,
   fig.height = 6,
-  results = "asis",   # for HTML
+	dpi = 300,
+	fig.align = "center",
+	out.width = if(knitr::is_html_output()) NULL else "70%",
+	results = "asis",   # for HTML
   message = FALSE,    # no message from the code
   warning = FALSE,    # no warning from the code
 	eval.after = "fig.cap",    # to add fig. caption within the chunk
@@ -56,7 +59,7 @@ load(fn$i$olk01)
 # To confirm sample IDs
 load(fn$i$c01)
 
-panels <- unique(olink$Panel)
+panels <- unique(olink$Panel)     # both panels
 
 # initialize the variable that collects info during QC
 during_qc <- list()
@@ -154,7 +157,7 @@ tmp <- olink_ctrl %>%
   )
 for(ii in 1:nrow(tmp)) {
   tmp$data[[ii]] %>% 
-    kbl(caption = paste("Included NEG/IPC/Mix samples -", tmp$Panel[[ii]])) %>% 
+    kable(caption = paste("Included NEG/IPC/Mix samples -", tmp$Panel[[ii]])) %>% 
     kable_styling(full_width= FALSE) %>% 
     print()
 }
@@ -216,7 +219,7 @@ missing_tbl %>%
   mutate(value = "Missing") %>% 
   arrange(PlateID, SampleID) %>% 
   pivot_wider(c(SampleID, PlateID), "Panel") %>% 
-  kbl(caption = "Samples with missing data for whole panel") %>% 
+  kable(caption = "Samples with missing data for whole panel") %>% 
   kable_styling(full_width = FALSE)
 ```
 
@@ -226,7 +229,7 @@ The NPX values of `r english::words(sum(missing_tbl$N < 92))` sample were missin
 ```{r}
 isolated_missing %>% 
   select(-N) %>% 
-  kbl(caption = "Sample with unusual isolated missing values") %>% 
+  kable(caption = "Sample with unusual isolated missing values") %>% 
   kable_styling(full_width = FALSE)
 ```
 
@@ -337,7 +340,7 @@ olink %>%
     Samples = n_distinct(SampleID),
     Proteins = n_distinct(OlinkID)
   ) %>% 
-  kbl() %>% 
+  kable() %>% 
   kable_styling(full_width = FALSE)
 ```
 
@@ -366,7 +369,7 @@ samples_too_many_llod %>%
   mutate(below_lod_prop = sprintf("%3.f%%", below_lod_prop * 100)) %>% 
   select(RID, Tinnitus, `Sampling Age`, `Sample Lab`, 
          Panel, "LLOD prop." = below_lod_prop) %>% 
-  kbl(align = "llrllr") %>% 
+  kable(align = "llrllr") %>% 
   kable_styling(full_width = F) 
 ```
 
@@ -380,6 +383,7 @@ tmp <- olink0 %>%
   distinct(OlinkID, Panel, Assay, UniProt, LOD) %>% 
   mutate(
     Panel = str_remove(Panel, "^Olink ") %>% 
+      str_remove("Target 96 ") %>% 
       str_to_title()
   ) %>% 
   right_join(below_lod_prop$by_assay, by = "OlinkID") %>% 
@@ -396,7 +400,7 @@ for(ii in panels) {
   tmp %>% 
     filter(Panel == ii) %>% 
     select(-Panel) %>% 
-    kbl(caption = ii, align = "lllrr") %>% 
+    kable(caption = ii, align = "lllrr") %>% 
     kable_styling(full_width = F) %>% 
     print()
 }
