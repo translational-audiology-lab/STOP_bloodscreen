@@ -42,4 +42,17 @@ olink_wide <- olink %>%
 # Olink wide form + clinical info
 oc <- full_join(olink_wide, qns, by = "SampleID")
 
-openxlsx::write.xlsx(oc, file = fn$o$ut)
+# Olink data only divided by panel
+olink_by_panel <- olink %>% 
+  split(.$Panel) %>% 
+  lapply(
+    . %>% 
+      pivot_wider(SampleID, names_from = Assay, values_from = NPX)
+  )
+
+# save
+out <- c(
+  olink_by_panel,
+  list("All data" = oc)
+)
+openxlsx::write.xlsx(out, file = fn$o$ut)
