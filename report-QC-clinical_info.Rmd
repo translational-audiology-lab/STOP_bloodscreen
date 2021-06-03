@@ -98,7 +98,7 @@ qns %>%
   filter(RID %in% about_table$bmi_extreme) %>% 
   mutate(BMI = round(A4 / (A3 / 100)^2, 1)) %>% 
   select(RID, Age, Sex, BMI, `Height (cm)` = A3, `Weight (kg)` = A4) %>% 
-  kbl() %>% 
+  kable() %>% 
   kable_styling(full_width = F)
 ```
 
@@ -123,7 +123,7 @@ cat(knitr::combine_words(about_table$mostly_na, before = "`"))
 
 ```{r}
 about_table$one_value_only %>% 
-  kbl() %>% 
+  kable() %>% 
   kable_styling(full_width = F)
 ```
 

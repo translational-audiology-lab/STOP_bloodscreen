@@ -114,7 +114,7 @@ olink_qns %>%
     Samples = n_distinct(SampleID),
     Proteins = n_distinct(OlinkID)
   ) %>% 
-  kbl() %>% 
+  kable() %>% 
   kable_styling(full_width = FALSE)
 ```
 
@@ -199,7 +199,7 @@ assoc_res$covariates %>%
     .groups = "drop"
   ) %>% 
   select(-prots) %>%
-  rename(`Nr. or assoc.\nproteins` = N) %>% 
+  rename(`Nr. or assoc. proteins` = N) %>% 
   mutate(
     # show in the order as `cvar_test`
     Term = fct_relevel(Term, tested_cvars) %>%
@@ -207,8 +207,8 @@ assoc_res$covariates %>%
     Model = gsub('`', '', Model)
   ) %>% 
   arrange(Term) %>% 
-  kbl(align = "llrrl") %>% 
-  kable_styling()
+  kable(align = "llrrl") %>% 
+  kable_styling(full_width = FALSE)
 ```
 
 #### Age
@@ -620,7 +620,7 @@ show_delta_P_perm(out_df, caption = paste(txt, "- Top 5"))
 ```{r}
 ss <- qsets$stress
 select(ss, "Variable ID" = "lab", "Description" = "desc") %>% 
-  kbl() %>% 
+  kable() %>% 
   kable_styling(full_width = FALSE)
 # covariates
 rhs1 <- "Tinnitus + Age + Sex + BMI + Smoking + `Sample Lab`"
@@ -965,7 +965,7 @@ score_cut <- tribble(
 score_cut %>% 
   mutate(Range = paste(lag(up_bound, default = -1) + 1, "-", up_bound)) %>% 
   select(Label = lab, Range) %>% 
-  kbl(align = "lc") %>% 
+  kable(align = "lc") %>% 
   kable_styling(full_width = FALSE)
 ```
 
