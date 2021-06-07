@@ -1,7 +1,19 @@
-# files and folders generated with the Rstudio project
-.Rproj.user
-.Rhistory
-.RData
-.Ruserdata
+# ignore all files starting with . or ~
+.*
+~*
 
+# ignore intermediate, logs and scratch dirs
+intermediate
+cache
+logs
+scratch
+
+# ignore OS generated files
 **/.DS_Store
+Thumbs.db
+
+# -------------------------
+# Whitelisted files
+# -------------------------
+!.gitignore
+.Rproj.user

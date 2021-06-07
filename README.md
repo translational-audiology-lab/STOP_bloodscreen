@@ -15,10 +15,6 @@ generate results from given data. This is written in Markdown (`.md`). So, it lo
 The overarching aim of this project is to establish novel blood biomarkers for tinnitus, which is the first research priority from the BTA. Biomarkers for tinnitus are currently lacking and these are essential in order to i) understand the pathophysiology of tinnitus; ii) stratify patients; iii) provide read-outs for clinical trials. Similarity in the neuropathophysiology between tinnitus and pain led us to hypothesize that inflammation is involved in tinnitus. 
 A preliminary analysis on 548 cases of constant tinnitus and 548 age/sex matched controls showed 10% of the proteins had a strong correlation with smoking, and that 50% of proteins were strongly correlated with age and with self-reported hearing ability (Bonferroni adjusted P < 0.05). We performed a linear regression and adjusted for age, sex, BMI, smoking status, sample collection site, and hearing ability. This allowed us to identify 5 proteins with close to significant adjusted p values, namely FGF-21, MCP-4, CXCL9, GDNF, and MCP-1 (Fig. 1). These proteins were found higher in the tinnitus group and did not associate with stress, anxiety or depression, nor temporomandibular joint disorder, headache or hyperacusis. The goal of this project is to expand the analysis to the neurological panel from O'link on the same samples.
 
-* 
-
-* 
-
 --------------------------------------------------------------------------------
 
 ## General info
@@ -86,6 +82,7 @@ command.
 
 4. Run `R` and execute this command in `R` to restore the same R environment. 
 
+        renv::init()
         renv::restore()
 
 Please refer to 
@@ -112,7 +109,7 @@ Run these lines below in an R console, which will generate all intermediate data
 files for data analysis and the final report. Please make sure the input files
 are ready in expected folders. The files were listed below the code lines.  
 
-```R
+```r
 source("master_data_generation.R")   # data generation
 source("master_heavy_analyses.R")   # data generation
 rmarkdown::render("report-5797-Tinnitus.Rmd")    # main report
