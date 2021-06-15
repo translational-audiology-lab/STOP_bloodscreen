@@ -189,9 +189,7 @@ The website for this study : [stop.ki.se](http://stop.ki.se)
 # Association of individual proteins - overall samples
 
 ```{r, include=FALSE}
-# panels <- c("Inflammation", "Neurology")
-panels <- "Inflammation"
-# panels <- "Neurology"
+panels <- c("Inflammation", "Neurology")
 ```
 
 ```{r child = "report-assoc-overall_samples.Rmd"}
