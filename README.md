@@ -1,5 +1,6 @@
 This has the information and description of the code here, which were used to
-generate results from given data. This is written in Markdown (`.md`). So, it looks better in a Markdown viewer such as [Typora](https://typora.io/).
+generate results from given data. This is written in Markdown (`.md`). So, it
+looks better in a Markdown viewer such as [Typora](https://typora.io/).
 
 ## Project info
 
