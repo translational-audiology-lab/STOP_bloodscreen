@@ -76,10 +76,10 @@ software `conda` is assumed to be pre-installed. Please refer to
 command.
 
 3. Run the commands below. It creates the same Conda environment and activate it
-(Note : The `project_a` can be chosen as your preference for your project name).
+(Note : The `nbis5797` can be chosen as your preference for your project name).
 
-        conda env create -n project_a -f environment.yml
-        conda activate project_a
+        conda env create -n nbis5797 -f environment.yml
+        conda activate nbis5797
 
 4. Run `R` and execute this command in `R` to restore the same R environment. 
 
