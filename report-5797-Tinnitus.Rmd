@@ -12,10 +12,10 @@ params:
 title: "`r params$project_title`"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
-  pdf_document:
-    toc: true
-    toc_depth: 4
-    number_sections: true
+  # pdf_document:
+  #   toc: true
+  #   toc_depth: 4
+  #   number_sections: true
   html_document:
     toc: true
     toc_float: 
