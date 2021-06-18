@@ -574,7 +574,7 @@ out_df <- assoc_res$perm_t[[rhs]]
 
 #### Results
 
-* `r Words(sum(out_df$P_perm < 0.05))` protein was significantly associated with tinnitus (adjusted P by permutation < 0.05). 
+* `r Words(sum(out_df$P_perm < 0.05))` protein was significantly associated with hearing problem (adjusted P by permutation < 0.05). 
 
 ```{r}
 out_df %>% 
