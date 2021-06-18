@@ -198,3 +198,6 @@ association tests
 
 * `export_clean_data.R` : cleaned clinical info + proteomic data
 
+#### Association test results
+
+* `export-assoc_results.R` : Export association test results
